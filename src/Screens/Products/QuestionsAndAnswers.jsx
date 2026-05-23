@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import VoiceInputWrapper from '../../Components/VoiceInput/VoiceInputWrapper'
+import { ReactTransliterate } from "react-transliterate";
+import "react-transliterate/dist/index.css";
 import { addQuestion, deleteQuestion, getAllQuestions, updateQuestion } from '../../services/products'
 import './QuestionsAndAnswers.css'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -244,13 +246,12 @@ const QuestionsAndAnswers = () => {
                                 <div className="qa-form-group">
                                     <label className="qa-label">Topic</label>
                                     <VoiceInputWrapper value={topic} onTextUpdate={setTopic} lang={voiceLang}>
-                                        <input
-                                            type="text"
+                                        <ReactTransliterate
                                             value={topic}
-                                            onChange={(e) => setTopic(e.target.value)}
-                                            className="qa-input"
-                                            placeholder="Enter topic"
-                                            required
+                                            onChangeText={setTopic}
+                                            lang="ml"
+                                            enabled={voiceLang === 'ml-IN'}
+                                            renderComponent={(props) => <input {...props} className="qa-input" placeholder="Enter topic" required />}
                                         />
                                     </VoiceInputWrapper>
                                 </div>
@@ -260,12 +261,12 @@ const QuestionsAndAnswers = () => {
                                 <div className="qa-form-group">
                                     <label className="qa-label">Sub Topic</label>
                                     <VoiceInputWrapper value={subTopic} onTextUpdate={setSubTopic} lang={voiceLang}>
-                                        <input
-                                            type="text"
+                                        <ReactTransliterate
                                             value={subTopic}
-                                            onChange={(e) => setSubTopic(e.target.value)}
-                                            className="qa-input"
-                                            placeholder="Enter sub topic"
+                                            onChangeText={setSubTopic}
+                                            lang="ml"
+                                            enabled={voiceLang === 'ml-IN'}
+                                            renderComponent={(props) => <input {...props} className="qa-input" placeholder="Enter sub topic" />}
                                         />
                                     </VoiceInputWrapper>
                                 </div>
@@ -273,14 +274,13 @@ const QuestionsAndAnswers = () => {
 
                             <div className="qa-form-group">
                                 <label className="qa-label">Question</label>
-                                <VoiceInputWrapper value={question} onTextUpdate={setQuestion} lang={voiceLang}>
-                                    <textarea
+                                <VoiceInputWrapper value={question} onTextUpdate={setQuestion} lang={voiceLang} className="voice-input-wrapper-textarea">
+                                    <ReactTransliterate
                                         value={question}
-                                        onChange={(e) => setQuestion(e.target.value)}
-                                        className="qa-input qa-textarea"
-                                        placeholder="Type your question here..."
-                                        rows="3"
-                                        required
+                                        onChangeText={setQuestion}
+                                        lang="ml"
+                                        enabled={voiceLang === 'ml-IN'}
+                                        renderComponent={(props) => <textarea {...props} className="qa-input qa-textarea" placeholder="Type your question here..." rows="3" required />}
                                     />
                                 </VoiceInputWrapper>
                             </div>
@@ -288,13 +288,12 @@ const QuestionsAndAnswers = () => {
                             <div className="qa-form-group">
                                 <label className="qa-label">Correct Answer</label>
                                 <VoiceInputWrapper value={answer} onTextUpdate={setAnswer} lang={voiceLang}>
-                                    <input
-                                        type="text"
+                                    <ReactTransliterate
                                         value={answer}
-                                        onChange={(e) => setAnswer(e.target.value)}
-                                        className="qa-input"
-                                        placeholder="Enter the correct answer"
-                                        required
+                                        onChangeText={setAnswer}
+                                        lang="ml"
+                                        enabled={voiceLang === 'ml-IN'}
+                                        renderComponent={(props) => <input {...props} className="qa-input" placeholder="Enter the correct answer" required />}
                                     />
                                 </VoiceInputWrapper>
                             </div>
@@ -304,13 +303,12 @@ const QuestionsAndAnswers = () => {
                                 <div className="qa-options-grid">
                                     {options.map((opt, idx) => (
                                         <VoiceInputWrapper key={idx} value={opt} onTextUpdate={(val) => handleOptionChange(idx, val)} lang={voiceLang}>
-                                            <input
-                                                type="text"
+                                            <ReactTransliterate
                                                 value={opt}
-                                                onChange={(e) => handleOptionChange(idx, e.target.value)}
-                                                className="qa-input"
-                                                placeholder={`Option ${idx + 1}`}
-                                                required
+                                                onChangeText={(val) => handleOptionChange(idx, val)}
+                                                lang="ml"
+                                                enabled={voiceLang === 'ml-IN'}
+                                                renderComponent={(props) => <input {...props} className="qa-input" placeholder={`Option ${idx + 1}`} required />}
                                             />
                                         </VoiceInputWrapper>
                                     ))}
@@ -320,12 +318,12 @@ const QuestionsAndAnswers = () => {
                             <div className="qa-form-group">
                                 <label className="qa-label">Review / Notes</label>
                                 <VoiceInputWrapper value={review} onTextUpdate={setReview} lang={voiceLang}>
-                                    <input
-                                        type="text"
+                                    <ReactTransliterate
                                         value={review}
-                                        onChange={(e) => setReview(e.target.value)}
-                                        className="qa-input"
-                                        placeholder="Additional notes"
+                                        onChangeText={setReview}
+                                        lang="ml"
+                                        enabled={voiceLang === 'ml-IN'}
+                                        renderComponent={(props) => <input {...props} className="qa-input" placeholder="Additional notes" />}
                                     />
                                 </VoiceInputWrapper>
                             </div>

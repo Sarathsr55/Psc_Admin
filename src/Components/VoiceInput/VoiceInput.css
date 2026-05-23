@@ -5,10 +5,14 @@
     align-items: center;
 }
 
-.voice-input-wrapper > input,
-.voice-input-wrapper > textarea {
-    padding-right: 40px !important;
+.voice-input-wrapper input,
+.voice-input-wrapper textarea {
+    padding-right: 20px !important;
     width: 100%;
+}
+
+.voice-input-wrapper>div:first-child {
+    width: 90%;
 }
 
 /* Hidden by default */
@@ -25,9 +29,8 @@
     transition: opacity 0.2s ease;
 }
 
-/* Show when input/textarea is hovered or when listening */
-.voice-input-wrapper > input:hover ~ .voice-controls,
-.voice-input-wrapper > textarea:hover ~ .voice-controls,
+/* Show when wrapper is hovered or when listening */
+.voice-input-wrapper:hover .voice-controls,
 .voice-input-wrapper.listening .voice-controls,
 .voice-controls:hover {
     opacity: 1 !important;
@@ -35,7 +38,7 @@
 }
 
 /* For textareas, position at the top right */
-.voice-input-wrapper > textarea ~ .voice-controls {
+.voice-input-wrapper-textarea .voice-controls {
     top: 12px;
     transform: none;
 }
@@ -70,7 +73,9 @@
 }
 
 @keyframes ping {
-    75%, 100% {
+
+    75%,
+    100% {
         transform: scale(2);
         opacity: 0;
     }
