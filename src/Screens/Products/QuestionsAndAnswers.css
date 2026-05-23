@@ -1,0 +1,449 @@
+/* =========================================
+   Variables & Theme
+   ========================================= */
+:root {
+    --qa-primary: #0bc097;
+    --qa-primary-hover: #09a07d;
+    --qa-secondary: #6c757d;
+    --qa-danger: #dc3545;
+    --qa-danger-hover: #b02a37;
+    --qa-background: #f8f9fa;
+    --qa-surface: #ffffff;
+    --qa-text-main: #2d3748;
+    --qa-text-muted: #718096;
+    --qa-border: #e2e8f0;
+    --qa-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
+    --qa-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    --qa-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    --qa-radius: 12px;
+    --qa-spacing-xs: 0.5rem;
+    /* 8px */
+    --qa-spacing-sm: 1rem;
+    /* 16px */
+    --qa-spacing-md: 1.5rem;
+    /* 24px */
+    --qa-spacing-lg: 2rem;
+    /* 32px */
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* =========================================
+   Container & Layout
+   ========================================= */
+.qa-page-container {
+    width: 100%;
+    padding: var(--qa-spacing-md);
+    background-color: var(--qa-background);
+    min-height: 100vh;
+    box-sizing: border-box;
+}
+
+.qa-main-layout {
+    display: grid;
+    grid-template-columns: 400px 1fr;
+    gap: var(--qa-spacing-md);
+    max-width: 1600px;
+    /* Prevent being too wide on ultra-wide screens */
+    margin: 0 auto;
+    align-items: start;
+}
+
+/* Responsive: stack on smaller screens */
+@media (max-width: 1024px) {
+    .qa-main-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* =========================================
+   Cards & Panels
+   ========================================= */
+.qa-card {
+    background: var(--qa-surface);
+    border-radius: var(--qa-radius);
+    box-shadow: var(--qa-shadow-md);
+    border: 1px solid var(--qa-border);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 2 * var(--qa-spacing-md));
+    position: sticky;
+    top: var(--qa-spacing-md);
+}
+
+.qa-card-header {
+    padding: var(--qa-spacing-md);
+    border-bottom: 1px solid var(--qa-border);
+    background: linear-gradient(to right, #ffffff, #fcfcfc);
+}
+
+.qa-title {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--qa-text-main);
+    letter-spacing: -0.025em;
+}
+
+.qa-auto-fetch-toggle {
+    display: flex;
+    align-items: center;
+}
+
+.qa-toggle-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--qa-text-muted);
+    transition: color 0.2s ease;
+}
+
+.qa-toggle-label:hover {
+    color: var(--qa-primary);
+}
+
+.qa-toggle-label input[type="checkbox"] {
+    width: 1rem;
+    height: 1rem;
+    cursor: pointer;
+    accent-color: var(--qa-primary);
+}
+
+.qa-toggle-text {
+    user-select: none;
+}
+
+/* =========================================
+   Form Elements
+   ========================================= */
+.qa-form {
+    padding: var(--qa-spacing-md);
+    overflow-y: auto;
+    flex: 1;
+}
+
+/* Custom Scrollbar for form */
+.qa-form::-webkit-scrollbar {
+    width: 6px;
+}
+.qa-form::-webkit-scrollbar-track {
+    background: transparent;
+}
+.qa-form::-webkit-scrollbar-thumb {
+    background-color: #cbd5e0;
+    border-radius: 20px;
+}
+
+.qa-form-row {
+    display: grid;
+    gap: var(--qa-spacing-sm);
+    margin-bottom: var(--qa-spacing-sm);
+}
+
+.qa-form-row.col-2 {
+    grid-template-columns: 1fr 1fr;
+}
+
+.qa-form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: var(--qa-spacing-sm);
+}
+
+.qa-label {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--qa-text-main);
+}
+
+.qa-input,
+.qa-select {
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    border: 1px solid var(--qa-border);
+    font-size: 0.95rem;
+    background-color: #ffffff;
+    transition: all 0.2s ease;
+    color: var(--qa-text-main);
+    outline: none;
+}
+
+.qa-input:focus,
+.qa-select:focus {
+    border-color: var(--qa-primary);
+    box-shadow: 0 0 0 3px rgba(11, 192, 151, 0.15);
+}
+
+.qa-textarea {
+    resize: vertical;
+    min-height: 80px;
+}
+
+.qa-options-grid {
+    display: grid;
+    gap: 0.5rem;
+}
+
+/* =========================================
+   Buttons
+   ========================================= */
+.qa-form-actions {
+    display: flex;
+    gap: 1rem;
+    margin-top: var(--qa-spacing-sm);
+}
+
+.qa-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: none;
+    width: 100%;
+}
+
+.qa-btn-primary {
+    background-color: var(--qa-primary);
+    color: white;
+    box-shadow: 0 4px 6px rgba(11, 192, 151, 0.2);
+}
+
+.qa-btn-primary:hover {
+    background-color: var(--qa-primary-hover);
+    transform: translateY(-1px);
+}
+
+.qa-btn-secondary {
+    background-color: transparent;
+    color: var(--qa-text-muted);
+    border: 1px solid var(--qa-border);
+}
+
+.qa-btn-secondary:hover {
+    background-color: #f1f5f9;
+    color: var(--qa-text-main);
+}
+
+.qa-btn-danger {
+    background-color: var(--qa-danger);
+    color: white;
+}
+
+.qa-btn-danger:hover {
+    background-color: var(--qa-danger-hover);
+}
+
+/* =========================================
+   List Section
+   ========================================= */
+.qa-list-section {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    max-height: calc(100vh - 2 * var(--qa-spacing-md));
+}
+
+.qa-list-header {
+    margin-bottom: var(--qa-spacing-sm);
+}
+
+.qa-list-header h3 {
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: var(--qa-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin: 0;
+}
+
+.qa-list-container {
+    overflow-y: auto;
+    padding-right: 5px;
+    /* space for scrollbar */
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(560px, 1fr));
+    gap: var(--qa-spacing-sm);
+}
+
+/* Custom Scrollbar */
+.qa-list-container::-webkit-scrollbar {
+    width: 6px;
+}
+
+.qa-list-container::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.qa-list-container::-webkit-scrollbar-thumb {
+    background-color: #cbd5e0;
+    border-radius: 20px;
+}
+
+.qa-item-card {
+    background: white;
+    border-radius: var(--qa-radius);
+    padding: var(--qa-spacing-sm);
+    box-shadow: var(--qa-shadow-sm);
+    border: 1px solid var(--qa-border);
+    position: relative;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.qa-item-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--qa-shadow-lg);
+}
+
+.qa-item-actions {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: flex;
+    gap: 0.5rem;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    z-index: 20;
+}
+
+.qa-item-card:hover .qa-item-actions {
+    opacity: 1;
+}
+
+.qa-icon-btn {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    border: 1px solid var(--qa-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    background: var(--qa-surface);
+    box-shadow: var(--qa-shadow-sm);
+    font-size: 1.6rem;
+    transition: all 0.2s ease;
+    padding: 0;
+}
+
+.qa-icon-btn:hover {
+    transform: scale(1.1);
+    box-shadow: var(--qa-shadow-md);
+}
+
+.edit-btn {
+    color: var(--qa-primary);
+}
+
+.edit-btn:hover {
+    background: var(--qa-primary);
+    color: white;
+    border-color: var(--qa-primary);
+}
+
+.delete-btn {
+    color: var(--qa-danger);
+}
+
+.delete-btn:hover {
+    background: var(--qa-danger);
+    color: white;
+    border-color: var(--qa-danger);
+}
+
+
+/* =========================================
+   Modal
+   ========================================= */
+.qa-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    backdrop-filter: blur(2px);
+}
+
+.qa-modal {
+    background: white;
+    padding: 0;
+    /* Header/Body/Footer handle padding */
+    border-radius: var(--qa-radius);
+    width: 90%;
+    max-width: 400px;
+    box-shadow: var(--qa-shadow-lg);
+    animation: modalFadeIn 0.2s ease-out;
+    overflow: hidden;
+}
+
+@keyframes modalFadeIn {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.qa-modal-header {
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--qa-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.qa-modal-header h4 {
+    margin: 0;
+    font-size: 1.1rem;
+}
+
+.qa-modal-close {
+    cursor: pointer;
+    font-size: 1.5rem;
+    color: var(--qa-text-muted);
+}
+
+.qa-modal-body {
+    padding: 1.5rem;
+    color: var(--qa-text-main);
+    text-align: center;
+}
+
+.qa-modal-footer {
+    padding: 1rem 1.5rem;
+    background-color: #f9fafb;
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+}
+
+/* =========================================
+   Utility / Misc
+   ========================================= */
+.qa-loading,
+.qa-error,
+.qa-no-data {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 200px;
+    width: 100%;
+    color: var(--qa-text-muted);
+}

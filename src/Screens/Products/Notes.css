@@ -1,0 +1,378 @@
+/* =========================================
+   Variables & Theme
+   ========================================= */
+:root {
+    --notes-primary: #0bc097;
+    --notes-primary-hover: #09a07d;
+    --notes-secondary: #6c757d;
+    --notes-danger: #dc3545;
+    --notes-danger-hover: #b02a37;
+    --notes-background: #f8f9fa;
+    --notes-surface: #ffffff;
+    --notes-text-main: #2d3748;
+    --notes-text-muted: #718096;
+    --notes-border: #e2e8f0;
+    --notes-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
+    --notes-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    --notes-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    --notes-radius: 12px;
+    --notes-spacing-xs: 0.5rem; /* 8px */
+    --notes-spacing-sm: 1rem;   /* 16px */
+    --notes-spacing-md: 1.5rem; /* 24px */
+    --notes-spacing-lg: 2rem;   /* 32px */
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* =========================================
+   Container & Layout
+   ========================================= */
+.notes-page-container {
+    width: 100%;
+    height: 100vh;
+    padding: var(--notes-spacing-md);
+    background-color: var(--notes-background);
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+.notes-header-filters {
+    display: flex;
+    gap: var(--notes-spacing-sm);
+    margin-bottom: var(--notes-spacing-md);
+    flex-wrap: wrap;
+    background: var(--notes-surface);
+    padding: var(--notes-spacing-sm);
+    border-radius: var(--notes-radius);
+    box-shadow: var(--notes-shadow-sm);
+    align-items: center;
+}
+
+.notes-main-layout {
+    display: grid;
+    grid-template-columns: 450px 1fr;
+    gap: var(--notes-spacing-md);
+    max-width: 1600px;
+    margin: 0 auto;
+    width: 100%;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden; /* Prevents the grid itself from expanding */
+}
+
+.notes-main-layout > * {
+    min-height: 0; /* Allows grid children to be smaller than their content */
+    height: 100%;
+}
+
+/* Responsive: stack on smaller screens */
+@media (max-width: 1100px) {
+    .notes-main-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* =========================================
+   Cards & Panels
+   ========================================= */
+.notes-card {
+    background: var(--notes-surface);
+    border-radius: var(--notes-radius);
+    box-shadow: var(--notes-shadow-md);
+    border: 1px solid var(--notes-border);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.notes-card-header {
+    padding: var(--notes-spacing-md);
+    border-bottom: 1px solid var(--notes-border);
+    background: linear-gradient(to right, #ffffff, #fcfcfc);
+}
+
+.notes-title {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--notes-text-main);
+    letter-spacing: -0.025em;
+}
+
+/* =========================================
+   Form Elements
+   ========================================= */
+.notes-form {
+    padding: var(--notes-spacing-md);
+    overflow-y: auto;
+    flex: 1;
+}
+
+.notes-form::-webkit-scrollbar {
+    width: 6px;
+}
+
+.notes-form::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.notes-form::-webkit-scrollbar-thumb {
+    background-color: #cbd5e0;
+    border-radius: 20px;
+}
+
+.notes-form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: var(--notes-spacing-sm);
+}
+
+.notes-label {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--notes-text-main);
+}
+
+.notes-input,
+.notes-select {
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    border: 1px solid var(--notes-border);
+    font-size: 0.95rem;
+    background-color: #ffffff;
+    transition: all 0.2s ease;
+    color: var(--notes-text-main);
+    outline: none;
+}
+
+.notes-input:focus,
+.notes-select:focus {
+    border-color: var(--notes-primary);
+    box-shadow: 0 0 0 3px rgba(11, 192, 151, 0.15);
+}
+
+.notes-textarea {
+    resize: vertical;
+    min-height: 80px;
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    border: 1px solid var(--notes-border);
+    font-size: 0.95rem;
+    outline: none;
+    transition: all 0.2s ease;
+}
+
+.notes-textarea:focus {
+    border-color: var(--notes-primary);
+    box-shadow: 0 0 0 3px rgba(11, 192, 151, 0.15);
+}
+
+.notes-dynamic-field {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.notes-dynamic-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.notes-tag {
+    position: relative;
+    background: #f1f5f9;
+    padding: 0.5rem 1.5rem 0.5rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--notes-text-main);
+    border: 1px solid var(--notes-border);
+}
+
+.notes-tag-remove {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: pointer;
+    color: var(--notes-danger);
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+}
+
+/* =========================================
+   Buttons
+   ========================================= */
+.notes-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: none;
+    width: 100%;
+}
+
+.notes-btn-primary {
+    background-color: var(--notes-primary);
+    color: white;
+    box-shadow: 0 4px 6px rgba(11, 192, 151, 0.2);
+}
+
+.notes-btn-primary:hover {
+    background-color: var(--notes-primary-hover);
+    transform: translateY(-1px);
+}
+
+.notes-btn-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    padding: 0;
+    background: var(--notes-text-main);
+    color: white;
+    flex-shrink: 0;
+}
+
+/* =========================================
+   List Section
+   ========================================= */
+.notes-list-section {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.notes-list-container {
+    overflow-y: auto;
+    padding-right: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--notes-spacing-sm);
+    flex: 1;
+}
+
+.notes-list-container::-webkit-scrollbar {
+    width: 6px;
+}
+
+.notes-list-container::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.notes-list-container::-webkit-scrollbar-thumb {
+    background-color: #cbd5e0;
+    border-radius: 20px;
+}
+
+.notesection {
+    position: relative;
+}
+
+.edit {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    display: none;
+    gap: 0.5rem;
+    z-index: 10;
+}
+
+.notesection:hover .edit {
+    display: flex;
+}
+
+.edit-icon {
+    width: 36px;
+    height: 36px;
+    background: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: var(--notes-shadow-md);
+    color: var(--notes-text-main);
+    transition: all 0.2s ease;
+    border: 1px solid var(--notes-border);
+}
+
+.edit-icon:hover {
+    transform: scale(1.1);
+    background: var(--notes-primary);
+    color: white;
+}
+
+.delete-icon:hover {
+    background: var(--notes-danger);
+    color: white;
+}
+
+/* =========================================
+   Modal
+   ========================================= */
+.notes-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    backdrop-filter: blur(4px);
+}
+
+.notes-modal {
+    background: white;
+    border-radius: var(--notes-radius);
+    width: 90%;
+    max-width: 450px;
+    box-shadow: var(--notes-shadow-lg);
+    overflow: hidden;
+    animation: modalSlideUp 0.3s ease-out;
+}
+
+@keyframes modalSlideUp {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+.notes-modal-header {
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--notes-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.notes-modal-body {
+    padding: 2rem 1.5rem;
+    text-align: center;
+    font-size: 1.1rem;
+    color: var(--notes-text-main);
+}
+
+.notes-modal-footer {
+    padding: 1.25rem 1.5rem;
+    background: #f9fafb;
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+}
+
+.notes-dynamic-voice {
+    flex: 1;
+}

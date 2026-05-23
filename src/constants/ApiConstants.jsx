@@ -1,0 +1,38 @@
+// const BACKEND_BASE_URL = 'http://ec2-18-212-215-28.compute-1.amazonaws.com:5000'
+const BACKEND_BASE_URL = 'https://psc-server.onrender.com'
+// const BACKEND_BASE_URL = 'http://localhost:5000'
+
+const BACKEND_API = {
+    BASE_API_URL: `${BACKEND_BASE_URL}`,
+    ADMIN_LOGIN: '/auth/adminlogin',
+    CREATE_ORDER: '/order/add-order',
+    ALL_ORDERS: '/order/allorders',
+    UPDATE_ORDER: '/order/updateorder',
+    DELETE_ORDER: '/order/deleteorder',
+    ADD_EXPENSE: '/expenses/addexpense',
+    ALL_EXPENSES: '/expenses/allexpenses',
+    UPDATE_EXPENSE: '/expenses/updateexpense',
+    DELETE_EXPENSE: '/expenses/deleteexpense',
+    ADD_PRODUCT: '/product/add-product',
+    GET_ALL_PRODUCTS: '/product/allproducts',
+    UPDATE_PRODUCT: '/product/updateproduct',
+    DELETE_PRODUCT: '/product/deleteproduct',
+    DELETE_IMAGE: '/product/deleteimage',
+    DELETE_USER: '/auth/delete',
+    GET_USER_BY_ID: '/user/getuser/',
+    CHATS: '/chat',
+    MESSAGE: '/message',
+    DELETECHAT: '/deletechat',
+    ADDQUESTIONANDANSWER: '/qsans/addqsans',
+    GETALLQUESTIONS: '/qsans/allquestionandanswer',
+    UPDATEQUESTION: '/qsans/updatequestionandanswer',
+    DELETEQUESTION: '/qsans/deletequestionandanswer',
+    ADDNOTES: '/notes/addnotes',
+    UPDATENOTES: '/notes/updatenotes',
+    DELETENOTES: '/notes/deletenotes',
+    GETALLNOTES: '/notes/allnotes',
+    DASHBOARD_STATS: '/user/dashboard-stats',
+    FETCH_OPTIONS: '/qsans/fetchoptions'
+}
+
+export default { BACKEND_API }

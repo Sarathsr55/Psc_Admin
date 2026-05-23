@@ -1,0 +1,77 @@
+.voice-input-wrapper {
+    position: relative;
+    width: 100%;
+    display: flex;
+    align-items: center;
+}
+
+.voice-input-wrapper > input,
+.voice-input-wrapper > textarea {
+    padding-right: 40px !important;
+    width: 100%;
+}
+
+/* Hidden by default */
+.voice-controls {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    z-index: 999;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+}
+
+/* Show when input/textarea is hovered or when listening */
+.voice-input-wrapper > input:hover ~ .voice-controls,
+.voice-input-wrapper > textarea:hover ~ .voice-controls,
+.voice-input-wrapper.listening .voice-controls,
+.voice-controls:hover {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+}
+
+/* For textareas, position at the top right */
+.voice-input-wrapper > textarea ~ .voice-controls {
+    top: 12px;
+    transform: none;
+}
+
+/* Mic button - no background, no border, just the icon */
+.voice-mic-btn {
+    width: 28px;
+    height: 28px;
+    background: none;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 0;
+    position: relative;
+}
+
+.voice-mic-btn:hover {
+    transform: scale(1.15);
+}
+
+/* Listening pulse ring */
+.listening-pulse {
+    position: absolute;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: rgba(239, 68, 68, 0.3);
+    z-index: -1;
+    animation: ping 1.2s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+@keyframes ping {
+    75%, 100% {
+        transform: scale(2);
+        opacity: 0;
+    }
+}
