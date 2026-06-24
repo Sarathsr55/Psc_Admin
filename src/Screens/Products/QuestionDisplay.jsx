@@ -33,6 +33,14 @@ export default function QuestionDisplay( {data} ) {
           </ul>
         </div>
 
+        {data?.tags && data.tags.length > 0 && (
+          <div className="display-tags-container">
+            {data.tags.map((tag, idx) => (
+              <span key={idx} className="display-tag-pill">{tag}</span>
+            ))}
+          </div>
+        )}
+
       </div>
     </div>
   );

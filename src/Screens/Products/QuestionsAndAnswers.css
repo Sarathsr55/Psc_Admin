@@ -447,3 +447,41 @@
     width: 100%;
     color: var(--qa-text-muted);
 }
+
+/* =========================================
+   Tags Section
+   ========================================= */
+.qa-tags-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    border: 1px solid var(--qa-border);
+    border-radius: var(--qa-radius);
+    background-color: #f9fafb;
+    min-height: 48px;
+}
+
+.qa-tag-pill {
+    padding: 0.25rem 0.75rem;
+    border-radius: 16px;
+    background-color: #e2e8f0;
+    color: var(--qa-text-main);
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.2s ease;
+    border: 1px solid transparent;
+}
+
+.qa-tag-pill:hover {
+    background-color: #cbd5e0;
+}
+
+.qa-tag-pill.active {
+    background-color: var(--qa-primary);
+    color: white;
+    border-color: var(--qa-primary-hover);
+    box-shadow: 0 2px 4px rgba(11, 192, 151, 0.2);
+}

@@ -66,6 +66,23 @@ color: #888;
 margin-top: 50px;
 }
 
+.display-tags-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+    margin-bottom: 12px;
+}
+
+.display-tag-pill {
+    background-color: #e2e8f0;
+    color: #4a5568;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
 
 @media (max-width: 600px) {
 .display-card {

@@ -17,7 +17,8 @@ const addQuestion = async (token, qa) => {
         post: qa?.post,
         topic: qa?.topic,
         subTopic: qa?.subTopic,
-        isPreviousYear: qa?.isPreviousYear
+        isPreviousYear: qa?.isPreviousYear,
+        tags: qa?.tags
     }
     const questionUploading = await AuthRequest.post(ApiConstants.BACKEND_API.ADDQUESTIONANDANSWER, object, {
         headers: {
@@ -50,7 +51,8 @@ const updateQuestion = async (qa) => {
         post: qa?.post,
         topic: qa?.topic,
         subTopic: qa?.subTopic,
-        isPreviousYear: qa?.isPreviousYear
+        isPreviousYear: qa?.isPreviousYear,
+        tags: qa?.tags
     }
     const questionUpdating = await AuthRequest.post(ApiConstants.BACKEND_API.UPDATEQUESTION, object, {
         headers: {

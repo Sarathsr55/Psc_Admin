@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import VoiceInputWrapper from '../../Components/VoiceInput/VoiceInputWrapper'
 import { ReactTransliterate } from "react-transliterate";
 import "react-transliterate/dist/index.css";
@@ -65,6 +65,9 @@ const QuestionsAndAnswers = () => {
     const [topic, setTopic] = useState('')
     const [subTopic, setSubTopic] = useState('')
     const [isPreviousYear, setIsPreviousYear] = useState(false)
+    const [tags, setTags] = useState([])
+    const [customTags, setCustomTags] = useState([])
+    const [hiddenOriginalTags, setHiddenOriginalTags] = useState([])
     const [voiceLang, setVoiceLang] = useState('ml-IN')
     const token = localStorage.getItem('token')
 
@@ -72,6 +75,46 @@ const QuestionsAndAnswers = () => {
         const updated = [...options];
         updated[index] = value;
         setOptions(updated);
+    };
+
+    const questionWords = useMemo(() => {
+        const combinedText = `${question || ''} ${answer || ''}`.trim();
+        if (!combinedText) return [];
+        // Split by spaces and basic punctuation, supporting multi-language
+        const words = combinedText.split(/[\s,?.!'"()\-]+/).filter(w => w.trim() !== '');
+        return Array.from(new Set(words));
+    }, [question, answer]);
+
+    const toggleTag = (word) => {
+        if (tags.includes(word)) {
+            setTags(tags.filter(t => t !== word));
+        } else {
+            setTags([...tags, word]);
+        }
+    };
+
+    const displayTags = useMemo(() => {
+        const base = questionWords.filter(w => !hiddenOriginalTags.includes(w));
+        return Array.from(new Set([...base, ...customTags]));
+    }, [questionWords, hiddenOriginalTags, customTags]);
+
+    const handleDragStart = (e, word) => {
+        e.dataTransfer.setData('text/plain', word);
+    };
+
+    const handleDrop = (e, targetWord) => {
+        e.preventDefault();
+        const draggedWord = e.dataTransfer.getData('text/plain');
+        if (draggedWord && draggedWord !== targetWord) {
+            const combined = `${targetWord} ${draggedWord}`;
+            setHiddenOriginalTags(prev => [...prev, draggedWord, targetWord]);
+            setCustomTags(prev => [...prev, combined]);
+            
+            setTags(prev => {
+                const filtered = prev.filter(t => t !== draggedWord && t !== targetWord);
+                return [...filtered, combined];
+            });
+        }
     };
 
     const uploadQusetionsAndAnswer = async () => {
@@ -85,7 +128,8 @@ const QuestionsAndAnswers = () => {
             post,
             topic,
             subTopic,
-            isPreviousYear
+            isPreviousYear,
+            tags
         }
         const result = await addQuestion(token, qaObject)
         if (result?.status === 200) {
@@ -93,6 +137,9 @@ const QuestionsAndAnswers = () => {
             setAnswer('')
             setCategory(Details.CATEGORY[0])
             setOptions(["", "", ""])
+            setTags([])
+            setCustomTags([])
+            setHiddenOriginalTags([])
             queryClient.invalidateQueries(['questions'])
         }
     }
@@ -109,7 +156,8 @@ const QuestionsAndAnswers = () => {
             post,
             topic,
             subTopic,
-            isPreviousYear
+            isPreviousYear,
+            tags
         }
         const result = await updateQuestion(qaObject)
 
@@ -119,6 +167,9 @@ const QuestionsAndAnswers = () => {
             setCategory(Details.CATEGORY[0])
             setOptions(["", "", ""])
             setReview('')
+            setTags([])
+            setCustomTags([])
+            setHiddenOriginalTags([])
             setEditId('')
             queryClient.invalidateQueries(['questions'])
         }
@@ -161,6 +212,9 @@ const QuestionsAndAnswers = () => {
             setSubTopic(obj?.subTopic || '')
             setReview(obj?.review || '')
             setIsPreviousYear(obj?.isPreviousYear || false)
+            setTags(obj?.tags || [])
+            setCustomTags([])
+            setHiddenOriginalTags([])
         }
     }
 
@@ -286,6 +340,32 @@ const QuestionsAndAnswers = () => {
                             </div>
 
                             <div className="qa-form-group">
+                                <label className="qa-label">Select Tags from Question & Answer</label>
+                                <div className="qa-tags-container">
+                                    {displayTags.length > 0 ? (
+                                        displayTags.map((word, idx) => (
+                                            <span 
+                                                key={idx} 
+                                                className={`qa-tag-pill ${tags.includes(word) ? 'active' : ''}`}
+                                                onClick={() => toggleTag(word)}
+                                                draggable
+                                                onDragStart={(e) => handleDragStart(e, word)}
+                                                onDragOver={(e) => e.preventDefault()}
+                                                onDrop={(e) => handleDrop(e, word)}
+                                                title="Drag and drop onto another tag to combine"
+                                            >
+                                                {word}
+                                            </span>
+                                        ))
+                                    ) : (
+                                        <span style={{ color: 'var(--qa-text-muted)', fontSize: '0.85rem' }}>
+                                            Type a question or answer above to see selectable words here...
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="qa-form-group">
                                 <label className="qa-label">Correct Answer</label>
                                 <VoiceInputWrapper value={answer} onTextUpdate={setAnswer} lang={voiceLang}>
                                     <ReactTransliterate
@@ -335,6 +415,9 @@ const QuestionsAndAnswers = () => {
                                         setQuestion('');
                                         setAnswer('');
                                         setOptions(["", "", ""]);
+                                        setTags([]);
+                                        setCustomTags([]);
+                                        setHiddenOriginalTags([]);
                                         setReview('');
                                     }}>Cancel</button>
                                 )}
