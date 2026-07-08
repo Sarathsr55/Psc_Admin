@@ -12,13 +12,19 @@ export default function QuestionDisplay( {data} ) {
     <div className="display-container">
       <div className="display-card">
           <Seperator height={10} />
-        <div style={{display:'flex'}}>
+        <div style={{display:'flex', alignItems: 'center'}}>
           <p style={{background:'#62c862ff',color:'white',padding:'0 10px',borderRadius:20}}>{data?.post} level</p>
           <Seperator width={10} />
           	
           <p style={{background:'#5dadc8ff',color:'white',padding:'0 10px',borderRadius:20}}>{data?.subject}</p>
           <Seperator width={10} />
           <p>{data?.topic}</p>
+          {data?.isPreviousYear && (
+            <>
+              <Seperator width={10} />
+              <p style={{background:'#f39c12ff',color:'white',padding:'0 10px',borderRadius:20, fontWeight: 'bold'}}>PYQ</p>
+            </>
+          )}
         </div>
           <Seperator height={10} /> 
         <p className="question-text"><strong>Question:</strong> {data?.question}</p>

@@ -140,6 +140,7 @@ const QuestionsAndAnswers = () => {
             setTags([])
             setCustomTags([])
             setHiddenOriginalTags([])
+            setReview('')
             queryClient.invalidateQueries(['questions'])
         }
     }
@@ -397,13 +398,13 @@ const QuestionsAndAnswers = () => {
 
                             <div className="qa-form-group">
                                 <label className="qa-label">Review / Notes</label>
-                                <VoiceInputWrapper value={review} onTextUpdate={setReview} lang={voiceLang}>
+                                <VoiceInputWrapper value={review} onTextUpdate={setReview} lang={voiceLang} className="voice-input-wrapper-textarea">
                                     <ReactTransliterate
                                         value={review}
                                         onChangeText={setReview}
                                         lang="ml"
                                         enabled={voiceLang === 'ml-IN'}
-                                        renderComponent={(props) => <input {...props} className="qa-input" placeholder="Additional notes" />}
+                                        renderComponent={(props) => <textarea {...props} className="qa-input qa-textarea" placeholder="Additional notes" rows="3" />}
                                     />
                                 </VoiceInputWrapper>
                             </div>

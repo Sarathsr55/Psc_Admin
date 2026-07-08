@@ -14,7 +14,8 @@ export default {
         'IT',
         'Miscellaneous',
         'Biology',
-        'Current Affairs'
+        'Current Affairs',
+        'Geography'
     ],
     LEVEL: [
         'Select',
