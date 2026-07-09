@@ -25,6 +25,14 @@ export default function QuestionDisplay( {data} ) {
               <p style={{background:'#f39c12ff',color:'white',padding:'0 10px',borderRadius:20, fontWeight: 'bold'}}>PYQ</p>
             </>
           )}
+          {data?.review && data.review.trim() !== '' && (
+            <>
+              <Seperator width={10} />
+              <p style={{background:'#9b59b6',color:'white',padding:'0 10px',borderRadius:20, fontWeight: 'bold', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px'}}>
+                📝 Notes
+              </p>
+            </>
+          )}
         </div>
           <Seperator height={10} /> 
         <p className="question-text"><strong>Question:</strong> {data?.question}</p>
