@@ -20,7 +20,7 @@ export default {
     LEVEL: [
         'Select',
         'Degree',
-        'Plus Two',
-        '10th'
+        'LDC',
+        'LGS'
     ]
 }

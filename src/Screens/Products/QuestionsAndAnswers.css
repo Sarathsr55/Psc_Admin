@@ -183,6 +183,27 @@
     min-height: 80px;
 }
 
+.qa-duplicate-input {
+    border-color: var(--qa-danger) !important;
+    box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.15) !important;
+}
+
+.qa-duplicate-warning {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--qa-danger);
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-top: -0.25rem;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
 .qa-options-grid {
     display: grid;
     gap: 0.5rem;

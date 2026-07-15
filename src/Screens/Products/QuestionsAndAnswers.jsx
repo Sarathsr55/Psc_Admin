@@ -8,32 +8,46 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import QuestionDisplay from './QuestionDisplay'
 import Details from '../../constants/Details'
 import { IonIcon } from '@ionic/react'
-import { close, createOutline, trashOutline, addOutline, cloudUploadOutline, languageOutline } from 'ionicons/icons'
+import { close, createOutline, trashOutline, addOutline, cloudUploadOutline, languageOutline, alertCircleOutline } from 'ionicons/icons'
 import animation from '../../constants/animation'
 import QuestionsList from './QuestionsList'
 import { Loader } from '../../Components/Loader/Loader'
 
-const QuestionsDisplayList = ({ onEdit, onDelete }) => {
-    const { data, isLoading, isError, error } = useQuery({
-        queryKey: ["questions"],
-        queryFn: getAllQuestions,
-        refetchInterval: 5000,
-    })
-
+const QuestionsDisplayList = ({ data, isLoading, isError, error, searchQuery, filterSubject, onEdit, onDelete }) => {
     if (isLoading) return <div className="qa-loading"><Loader size={100} /></div>
     if (isError) return <div className="qa-error">Error: {error.message}</div>
 
-    if (!data || data.length === 0) {
+    let filteredData = data;
+    if (searchQuery) {
+        const sanitize = (str) => {
+            if (!str) return '';
+            return str.toLowerCase().replace(/[\u200B-\u200D\uFEFF]/g, '').trim();
+        };
+        const query = sanitize(searchQuery);
+        filteredData = data.filter(obj => {
+            const q = sanitize(obj?.question);
+            const a = sanitize(obj?.answer);
+            const t = sanitize(obj?.topic);
+            const s = sanitize(obj?.subTopic);
+            return q.includes(query) || a.includes(query) || t.includes(query) || s.includes(query);
+        });
+    }
+
+    if (filterSubject) {
+        filteredData = filteredData.filter(obj => obj?.subject === filterSubject);
+    }
+
+    if (!filteredData || filteredData.length === 0) {
         return (
             <div className="qa-no-data">
-                <p>No questions available</p>
+                <p>No questions found</p>
             </div>
         )
     }
 
     return (
         <div className="qa-list-container">
-            {data.toReversed().map((obj) => (
+            {filteredData.toReversed().map((obj) => (
                 <div key={obj._id} className='qa-item-card'>
                     <div className='qa-item-actions'>
                         <button className="qa-icon-btn edit-btn" title="Edit Question" onClick={() => onEdit(obj)}>
@@ -52,6 +66,11 @@ const QuestionsDisplayList = ({ onEdit, onDelete }) => {
 
 const QuestionsAndAnswers = () => {
     const queryClient = useQueryClient()
+    const { data, isLoading, isError, error } = useQuery({
+        queryKey: ["questions"],
+        queryFn: getAllQuestions,
+        refetchInterval: 5000,
+    })
     const [question, setQuestion] = useState('')
     const [answer, setAnswer] = useState('')
     const [category, setCategory] = useState(Details.CATEGORY[0])
@@ -69,7 +88,22 @@ const QuestionsAndAnswers = () => {
     const [customTags, setCustomTags] = useState([])
     const [hiddenOriginalTags, setHiddenOriginalTags] = useState([])
     const [voiceLang, setVoiceLang] = useState('ml-IN')
+    const [searchQuery, setSearchQuery] = useState('')
+    const [filterSubject, setFilterSubject] = useState('')
     const token = localStorage.getItem('token')
+
+    const isDuplicateQuestion = useMemo(() => {
+        if (!question || !question.trim() || !data) return false;
+        const sanitize = (str) => {
+            if (!str) return '';
+            // Remove zero-width characters and all whitespace for strict comparison
+            return str.toLowerCase().replace(/[\u200B-\u200D\uFEFF\s]/g, '');
+        };
+        const currentSanitized = sanitize(question);
+        
+        // Exclude the currently editing question from the duplicate check
+        return data.some(obj => obj._id !== editId && sanitize(obj.question) === currentSanitized);
+    }, [question, data, editId]);
 
     const handleOptionChange = (index, value) => {
         const updated = [...options];
@@ -335,9 +369,15 @@ const QuestionsAndAnswers = () => {
                                         onChangeText={setQuestion}
                                         lang="ml"
                                         enabled={voiceLang === 'ml-IN'}
-                                        renderComponent={(props) => <textarea {...props} className="qa-input qa-textarea" placeholder="Type your question here..." rows="3" required />}
+                                        renderComponent={(props) => <textarea {...props} className={`qa-input qa-textarea ${isDuplicateQuestion ? 'qa-duplicate-input' : ''}`} placeholder="Type your question here..." rows="3" required />}
                                     />
                                 </VoiceInputWrapper>
+                                {isDuplicateQuestion && (
+                                    <div className="qa-duplicate-warning">
+                                        <IonIcon icon={alertCircleOutline} style={{ fontSize: '1.2rem' }} />
+                                        <span>This exact question already exists in the database!</span>
+                                    </div>
+                                )}
                             </div>
 
                             <div className="qa-form-group">
@@ -433,10 +473,38 @@ const QuestionsAndAnswers = () => {
 
                 {/* Right Side: List */}
                 <div className="qa-list-section">
-                    <div className="qa-list-header">
+                    <div className="qa-list-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                         <h3>All Questions</h3>
+                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                            <select 
+                                className="qa-select" 
+                                value={filterSubject} 
+                                onChange={(e) => setFilterSubject(e.target.value)}
+                                style={{ padding: '0.5rem', fontSize: '0.85rem', width: '150px' }}
+                            >
+                                <option value="">All Subjects</option>
+                                {Details.SUBJECT.map((obj, index) => <option key={index} value={obj}>{obj}</option>)}
+                            </select>
+                            <VoiceInputWrapper value={searchQuery} onTextUpdate={setSearchQuery} lang={voiceLang}>
+                                <ReactTransliterate
+                                    value={searchQuery}
+                                    onChangeText={setSearchQuery}
+                                    lang="ml"
+                                    enabled={voiceLang === 'ml-IN'}
+                                    renderComponent={(props) => (
+                                        <input 
+                                            {...props} 
+                                            type="text" 
+                                            className="qa-input" 
+                                            placeholder="Search questions..." 
+                                            style={{ width: '200px', padding: '0.5rem 1rem', fontSize: '0.85rem' }}
+                                        />
+                                    )}
+                                />
+                            </VoiceInputWrapper>
+                        </div>
                     </div>
-                    <QuestionsDisplayList onEdit={editProduct} onDelete={onHandleDelete} />
+                    <QuestionsDisplayList data={data} isLoading={isLoading} isError={isError} error={error} searchQuery={searchQuery} filterSubject={filterSubject} onEdit={editProduct} onDelete={onHandleDelete} />
                     {/* Fallback to old list if needed, or keeping it for reference, but replacing with inner component for better layout control */}
                     {/* <QuestionsList onEdit={editProduct} onDelete={onHandleDelete} /> */}
                 </div>
