@@ -196,7 +196,7 @@ const Dashboard = () => {
                                                         </div>
                                                     </td>
                                                     <td>
-                                                        <span className="score-value">{latestScore ? latestScore.score : 0}</span>
+                                                        <span className="score-value">{user.cumulativeScore ? user.cumulativeScore : 0}</span>
                                                     </td>
                                                     <td>
                                                         {latestScore ? new Date(latestScore.date).toLocaleDateString() : '-'}
