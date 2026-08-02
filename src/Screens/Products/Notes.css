@@ -194,16 +194,29 @@
     border: 1px solid var(--notes-border);
 }
 
-.notes-tag-remove {
+.notes-tag-actions {
     position: absolute;
     right: 6px;
     top: 50%;
     transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.notes-tag-action {
     cursor: pointer;
-    color: var(--notes-danger);
     font-size: 1rem;
     display: flex;
     align-items: center;
+    justify-content: center;
+    color: var(--notes-text-muted);
+}
+.notes-tag-action:hover {
+    color: var(--notes-primary);
+}
+.notes-tag-action.delete:hover {
+    color: var(--notes-danger);
 }
 
 /* =========================================

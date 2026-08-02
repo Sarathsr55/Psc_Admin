@@ -2,18 +2,18 @@
    Variables & Theme
    ========================================= */
 :root {
-    --qa-primary: #0bc097;
-    --qa-primary-hover: #09a07d;
-    --qa-secondary: #6c757d;
-    --qa-danger: #dc3545;
-    --qa-danger-hover: #b02a37;
-    --qa-background: #f8f9fa;
+    --qa-primary: #0f172a; /* Dashboard dark primary */
+    --qa-primary-hover: #1e293b;
+    --qa-secondary: #64748b;
+    --qa-danger: #ef4444;
+    --qa-danger-hover: #b91c1c;
+    --qa-background: #f8fafc;
     --qa-surface: #ffffff;
-    --qa-text-main: #2d3748;
-    --qa-text-muted: #718096;
+    --qa-text-main: #0f172a;
+    --qa-text-muted: #64748b;
     --qa-border: #e2e8f0;
     --qa-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
-    --qa-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    --qa-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
     --qa-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
     --qa-radius: 12px;
     --qa-spacing-xs: 0.5rem;

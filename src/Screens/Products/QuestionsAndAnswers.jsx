@@ -132,6 +132,21 @@ const QuestionsAndAnswers = () => {
         return Array.from(new Set([...base, ...customTags]));
     }, [questionWords, hiddenOriginalTags, customTags]);
 
+    const uniqueTopics = useMemo(() => {
+        if (!data) return [];
+        return Array.from(new Set(data.map(q => q.topic).filter(Boolean)));
+    }, [data]);
+
+    const uniqueSubTopics = useMemo(() => {
+        if (!data) return [];
+        return Array.from(new Set(data.map(q => q.subTopic).filter(Boolean)));
+    }, [data]);
+
+    const uniqueAnswers = useMemo(() => {
+        if (!data) return [];
+        return Array.from(new Set(data.map(q => q.answer).filter(Boolean)));
+    }, [data]);
+
     const handleDragStart = (e, word) => {
         e.dataTransfer.setData('text/plain', word);
     };
@@ -340,7 +355,7 @@ const QuestionsAndAnswers = () => {
                                             onChangeText={setTopic}
                                             lang="ml"
                                             enabled={voiceLang === 'ml-IN'}
-                                            renderComponent={(props) => <input {...props} className="qa-input" placeholder="Enter topic" required />}
+                                            renderComponent={(props) => <input {...props} className="qa-input" placeholder="Enter topic" list="topics-list" required />}
                                         />
                                     </VoiceInputWrapper>
                                 </div>
@@ -355,7 +370,7 @@ const QuestionsAndAnswers = () => {
                                             onChangeText={setSubTopic}
                                             lang="ml"
                                             enabled={voiceLang === 'ml-IN'}
-                                            renderComponent={(props) => <input {...props} className="qa-input" placeholder="Enter sub topic" />}
+                                            renderComponent={(props) => <input {...props} className="qa-input" placeholder="Enter sub topic" list="subtopics-list" />}
                                         />
                                     </VoiceInputWrapper>
                                 </div>
@@ -467,6 +482,17 @@ const QuestionsAndAnswers = () => {
                                     {editId ? 'Update Question' : 'Add Question'}
                                 </button>
                             </div>
+
+                            {/* Datalists for Auto-suggestions */}
+                            <datalist id="topics-list">
+                                {uniqueTopics.map((t, idx) => <option key={`t-${idx}`} value={t} />)}
+                            </datalist>
+                            <datalist id="subtopics-list">
+                                {uniqueSubTopics.map((st, idx) => <option key={`st-${idx}`} value={st} />)}
+                            </datalist>
+                            <datalist id="answers-list">
+                                {uniqueAnswers.map((a, idx) => <option key={`a-${idx}`} value={a} />)}
+                            </datalist>
                         </div>
                     </div>
                 </div>

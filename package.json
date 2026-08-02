@@ -25,7 +25,8 @@
     "react-minimal-pie-chart": "^9.1.1",
     "react-router-dom": "^7.6.3",
     "react-toastify": "^11.0.5",
-    "react-transliterate": "^1.1.9"
+    "react-transliterate": "^1.1.9",
+    "recharts": "^3.10.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.29.0",
