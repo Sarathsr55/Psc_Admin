@@ -90,7 +90,7 @@ const QuestionsAndAnswers = () => {
     const [voiceLang, setVoiceLang] = useState('ml-IN')
     const [searchQuery, setSearchQuery] = useState('')
     const [filterSubject, setFilterSubject] = useState('')
-    const [showRelatedNotes, setShowRelatedNotes] = useState(true)
+    const [showRelatedNotes, setShowRelatedNotes] = useState(false)
     const token = localStorage.getItem('token')
 
     const isDuplicateQuestion = useMemo(() => {
@@ -144,12 +144,6 @@ const QuestionsAndAnswers = () => {
             return acc;
         }, []);
     }, [data, tags, editId]);
-
-    useEffect(() => {
-        if (relatedNotes.length > 0) {
-            setShowRelatedNotes(true);
-        }
-    }, [relatedNotes.length]);
 
     const handleOptionChange = (index, value) => {
         const updated = [...options];
@@ -265,6 +259,7 @@ const QuestionsAndAnswers = () => {
             setCustomTags([])
             setHiddenOriginalTags([])
             setReview('')
+            setShowRelatedNotes(false)
             queryClient.invalidateQueries(['questions'])
         }
     }
@@ -296,6 +291,7 @@ const QuestionsAndAnswers = () => {
             setCustomTags([])
             setHiddenOriginalTags([])
             setEditId('')
+            setShowRelatedNotes(false)
             queryClient.invalidateQueries(['questions'])
         }
     }
@@ -340,6 +336,7 @@ const QuestionsAndAnswers = () => {
             setTags(obj?.tags || [])
             setCustomTags([])
             setHiddenOriginalTags([])
+            setShowRelatedNotes(false)
         }
     }
 
@@ -601,6 +598,7 @@ const QuestionsAndAnswers = () => {
                                         setCustomTags([]);
                                         setHiddenOriginalTags([]);
                                         setReview('');
+                                        setShowRelatedNotes(false);
                                     }}>Cancel</button>
                                 )}
                                 <button onClick={handleSave} className="qa-btn qa-btn-primary">
