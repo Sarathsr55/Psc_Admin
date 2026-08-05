@@ -90,6 +90,7 @@ const QuestionsAndAnswers = () => {
     const [voiceLang, setVoiceLang] = useState('ml-IN')
     const [searchQuery, setSearchQuery] = useState('')
     const [filterSubject, setFilterSubject] = useState('')
+    const [showRelatedNotes, setShowRelatedNotes] = useState(true)
     const token = localStorage.getItem('token')
 
     const isDuplicateQuestion = useMemo(() => {
@@ -104,6 +105,51 @@ const QuestionsAndAnswers = () => {
         // Exclude the currently editing question from the duplicate check
         return data.some(obj => obj._id !== editId && sanitize(obj.question) === currentSanitized);
     }, [question, data, editId]);
+
+    const relatedNotes = useMemo(() => {
+        if (!data || !Array.isArray(data)) return [];
+        
+        // Use user-selected tags as keywords
+        if (!tags || tags.length === 0) return [];
+
+        return data.reduce((acc, item) => {
+            // Don't match the currently edited question with itself
+            if (editId && item._id === editId) return acc;
+            
+            // Only include items that actually have a review/note
+            if (!item.review || !item.review.trim()) return acc;
+
+            const reviewText = (item.review || '').toLowerCase();
+            
+            // Check if at least one selected keyword appears in the other question's tags or review
+            let matchedKeywords = [];
+            for (const tag of tags) {
+                const keyword = tag.toLowerCase().trim();
+                if (!keyword) continue;
+
+                // Check if the other question has this tag, OR if the keyword is in its review
+                const hasTag = item.tags && item.tags.some(t => t.toLowerCase().trim() === keyword);
+                const inReview = reviewText.includes(keyword);
+
+                if (hasTag || inReview) {
+                    matchedKeywords.push(tag); // keep original casing if possible, or just the word
+                }
+            }
+            
+            // Show note if it includes the keyword
+            if (matchedKeywords.length >= 1) {
+                acc.push({ ...item, matchedKeywords });
+            }
+            
+            return acc;
+        }, []);
+    }, [data, tags, editId]);
+
+    useEffect(() => {
+        if (relatedNotes.length > 0) {
+            setShowRelatedNotes(true);
+        }
+    }, [relatedNotes.length]);
 
     const handleOptionChange = (index, value) => {
         const updated = [...options];
@@ -164,6 +210,35 @@ const QuestionsAndAnswers = () => {
                 return [...filtered, combined];
             });
         }
+    };
+
+    const getHighlightedText = (text, highlightTags) => {
+        if (!highlightTags || highlightTags.length === 0 || !text) {
+            return <span>{text}</span>;
+        }
+
+        const validTags = highlightTags.filter(t => t.trim().length > 0);
+        if (validTags.length === 0) return <span>{text}</span>;
+
+        const escapedTags = validTags.map(tag => tag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+        const regex = new RegExp(`(${escapedTags.join('|')})`, 'gi');
+        
+        const parts = text.split(regex);
+        
+        return (
+            <span>
+                {parts.map((part, i) => {
+                    const isMatch = validTags.some(tag => tag.toLowerCase() === part.toLowerCase());
+                    return isMatch ? (
+                        <span key={i} style={{ backgroundColor: '#fde047', color: '#854d0e', fontWeight: 'bold', padding: '0 2px', borderRadius: '2px' }}>
+                            {part}
+                        </span>
+                    ) : (
+                        <span key={i}>{part}</span>
+                    );
+                })}
+            </span>
+        );
     };
 
     const uploadQusetionsAndAnswer = async () => {
@@ -463,6 +538,57 @@ const QuestionsAndAnswers = () => {
                                     />
                                 </VoiceInputWrapper>
                             </div>
+
+                            {relatedNotes.length > 0 && (
+                                <div className="qa-form-group">
+                                    <label 
+                                        className="qa-label" 
+                                        style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#0ea5e9', cursor: 'pointer', userSelect: 'none', background: '#f0f9ff', padding: '0.5rem', borderRadius: '6px' }}
+                                        onClick={() => setShowRelatedNotes(!showRelatedNotes)}
+                                        title="Click to toggle related notes"
+                                    >
+                                        <IonIcon icon={alertCircleOutline} style={{ fontSize: '1.2rem' }} /> 
+                                        Related Notes ({relatedNotes.length})
+                                        <span style={{ marginLeft: 'auto', fontSize: '0.8rem', fontWeight: 'bold' }}>
+                                            {showRelatedNotes ? '▼ Hide' : '▶ Show'}
+                                        </span>
+                                    </label>
+                                    
+                                    {showRelatedNotes && (
+                                        <div className="qa-related-notes-container">
+                                            {relatedNotes.map((item, idx) => (
+                                            <div key={idx} className="qa-related-note-item">
+                                                <details>
+                                                    <summary className="qa-related-note-summary">
+                                                        <span style={{ fontWeight: '600', color: '#0f172a' }}>Keyword Match:</span> <span style={{ color: '#0ea5e9', marginLeft: '4px' }}>{item.matchedKeywords.join(', ')}</span>
+                                                    </summary>
+                                                    <div className="qa-related-note-content">
+                                                        <div className="qa-related-note-review-box">
+                                                            <div className="qa-related-note-text">
+                                                                {getHighlightedText(item.review, tags)}
+                                                            </div>
+                                                            <button 
+                                                                type="button" 
+                                                                className="qa-related-note-add-btn"
+                                                                onClick={(e) => {
+                                                                    e.preventDefault();
+                                                                    setReview(prev => prev ? prev + '\n' + item.review : item.review);
+                                                                    setShowRelatedNotes(false);
+                                                                }}
+                                                                title="Add to Review / Notes"
+                                                            >
+                                                                <IonIcon icon={addOutline} style={{ fontSize: '1.2rem', marginRight: '4px' }} />
+                                                                Add
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </details>
+                                            </div>
+                                        ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
 
                             <div className="qa-form-actions">
                                 {editId && (

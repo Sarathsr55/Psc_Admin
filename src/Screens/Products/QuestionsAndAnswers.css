@@ -506,3 +506,109 @@
     border-color: var(--qa-primary-hover);
     box-shadow: 0 2px 4px rgba(11, 192, 151, 0.2);
 }
+
+/* =========================================
+   Related Notes Section
+   ========================================= */
+.qa-related-notes-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.qa-related-note-item {
+    border: 1px solid var(--qa-border);
+    border-radius: 8px;
+    background: #f8fafc;
+    overflow: hidden;
+}
+
+.qa-related-note-summary {
+    padding: 0.75rem 1rem;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--qa-text-main);
+    background: #f1f5f9;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    transition: background 0.2s ease;
+}
+
+.qa-related-note-summary:hover {
+    background: #e2e8f0;
+}
+
+.qa-related-note-summary::before {
+    content: '▶';
+    font-size: 0.7rem;
+    margin-right: 0.5rem;
+    color: var(--qa-text-muted);
+    transition: transform 0.2s ease;
+}
+
+details[open] > .qa-related-note-summary::before {
+    transform: rotate(90deg);
+}
+
+.qa-related-note-content {
+    padding: 1rem;
+    background: white;
+    border-top: 1px solid var(--qa-border);
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.qa-related-note-review-box {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    font-size: 0.85rem;
+    color: #b45309;
+    font-style: italic;
+    background: #fffbeb;
+    padding: 1rem;
+    border-radius: 8px;
+    border: 1px solid #fef3c7;
+    transition: all 0.2s ease;
+}
+
+.qa-related-note-review-box:hover {
+    box-shadow: 0 4px 6px -1px rgba(253, 230, 138, 0.5);
+    border-color: #fde68a;
+}
+
+.qa-related-note-text {
+    flex: 1;
+    line-height: 1.5;
+}
+
+.qa-related-note-add-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.5rem 0.75rem;
+    background: #0ea5e9;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(14, 165, 233, 0.2);
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.qa-related-note-add-btn:hover {
+    background: #0284c7;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px rgba(14, 165, 233, 0.3);
+}
+
+.qa-related-note-add-btn:active {
+    transform: translateY(0);
+}
