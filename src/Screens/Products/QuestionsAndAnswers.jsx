@@ -682,6 +682,7 @@ const QuestionsAndAnswers = () => {
                                             onChangeText={setQuestion}
                                             lang="ml"
                                             enabled={voiceLang === 'ml-IN'}
+                                            containerStyles={{ width: '100%' }}
                                             renderComponent={(props) => <textarea {...props} className={`qa-input qa-textarea ${isDuplicateQuestion ? 'qa-duplicate-input' : ''}`} placeholder="Type your question here..." rows="3" required />}
                                         />
                                     </VoiceInputWrapper>
@@ -841,6 +842,7 @@ const QuestionsAndAnswers = () => {
                                         onChangeText={setReview}
                                         lang="ml"
                                         enabled={voiceLang === 'ml-IN'}
+                                        containerStyles={{ width: '100%' }}
                                         renderComponent={(props) => <textarea {...props} className="qa-input qa-textarea" placeholder="Additional notes" rows="3" />}
                                     />
                                 </VoiceInputWrapper>
