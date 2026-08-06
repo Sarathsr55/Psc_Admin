@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import VoiceInputWrapper from '../../Components/VoiceInput/VoiceInputWrapper'
 import { ReactTransliterate } from "react-transliterate";
 import "react-transliterate/dist/index.css";
@@ -8,10 +8,11 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import QuestionDisplay from './QuestionDisplay'
 import Details from '../../constants/Details'
 import { IonIcon } from '@ionic/react'
-import { close, createOutline, trashOutline, addOutline, cloudUploadOutline, languageOutline, alertCircleOutline } from 'ionicons/icons'
+import { close, createOutline, trashOutline, addOutline, cloudUploadOutline, languageOutline, alertCircleOutline, imageOutline, checkmarkCircleOutline } from 'ionicons/icons'
 import animation from '../../constants/animation'
 import QuestionsList from './QuestionsList'
 import { Loader } from '../../Components/Loader/Loader'
+import { useImageOCR } from '../../utils/useImageOCR'
 
 const QuestionsDisplayList = ({ data, isLoading, isError, error, searchQuery, filterSubject, onEdit, onDelete }) => {
     if (isLoading) return <div className="qa-loading"><Loader size={100} /></div>
@@ -93,6 +94,57 @@ const QuestionsAndAnswers = () => {
     const [showRelatedNotes, setShowRelatedNotes] = useState(false)
     const token = localStorage.getItem('token')
 
+    // ── Image OCR state ───────────────────────────────────────────────────────
+    const { extractFromFile, isExtracting, ocrProgress, ocrError } = useImageOCR()
+    const [isDragOver, setIsDragOver] = useState(false)
+    const [extractedQuestions, setExtractedQuestions] = useState([]) // [{question, options[]}]
+    const [showSuggestions, setShowSuggestions] = useState(false)
+    const [showAnswerPicker, setShowAnswerPicker] = useState(false)
+    const [pickerOptions, setPickerOptions] = useState([])
+    const dropZoneRef = useRef(null)
+    
+    // ── Resizable Split-Pane State ─────────────────────────────────────────────
+    const [leftWidth, setLeftWidth] = useState(() => {
+        const saved = localStorage.getItem('qaSplitWidth');
+        return saved ? parseFloat(saved) : 50; // default to 50%
+    });
+    const [isDragging, setIsDragging] = useState(false);
+    const layoutRef = useRef(null);
+
+    const handleMouseDown = useCallback((e) => {
+        e.preventDefault();
+        setIsDragging(true);
+    }, []);
+
+    useEffect(() => {
+        const handleMouseMove = (e) => {
+            if (!isDragging || !layoutRef.current) return;
+            const containerRect = layoutRef.current.getBoundingClientRect();
+            let newWidth = ((e.clientX - containerRect.left) / containerRect.width) * 100;
+            // Constrain between 30% and 90%
+            if (newWidth < 30) newWidth = 30;
+            if (newWidth > 90) newWidth = 90;
+            setLeftWidth(newWidth);
+        };
+
+        const handleMouseUp = () => {
+            if (isDragging) {
+                setIsDragging(false);
+                localStorage.setItem('qaSplitWidth', leftWidth);
+            }
+        };
+
+        if (isDragging) {
+            window.addEventListener('mousemove', handleMouseMove);
+            window.addEventListener('mouseup', handleMouseUp);
+        }
+
+        return () => {
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [isDragging, leftWidth]);
+
     const isDuplicateQuestion = useMemo(() => {
         if (!question || !question.trim() || !data) return false;
         const sanitize = (str) => {
@@ -150,6 +202,106 @@ const QuestionsAndAnswers = () => {
         updated[index] = value;
         setOptions(updated);
     };
+
+    // ── Image OCR drag-drop handlers ──────────────────────────────────────────
+    const handleDropZoneDragOver = (e) => {
+        // Only highlight if dropping a file (not tag-pill dragging)
+        if (e.dataTransfer.types.includes('Files')) {
+            e.preventDefault();
+            setIsDragOver(true);
+        }
+    };
+
+    const handleDropZoneDragLeave = (e) => {
+        // Only clear if leaving the entire drop zone (not a child element)
+        if (!dropZoneRef.current?.contains(e.relatedTarget)) {
+            setIsDragOver(false);
+        }
+    };
+
+    const handleDropZoneDrop = async (e) => {
+        e.preventDefault();
+        setIsDragOver(false);
+
+        const file = e.dataTransfer.files?.[0];
+        if (!file) return;
+
+        const isImage = file.type.startsWith('image/');
+        const isPDF = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+
+        if (!isImage && !isPDF) {
+            alert('Please drop an image (PNG, JPEG, WEBP…) or a PDF file.');
+            return;
+        }
+
+        setShowSuggestions(false);
+        setExtractedQuestions([]);
+
+        const parsed = await extractFromFile(file);
+        setExtractedQuestions(parsed);
+        setShowSuggestions(parsed.length > 0);
+
+        if (parsed.length === 0) {
+            alert('No questions could be detected in this image. Try a clearer image or check the file.');
+        }
+    };
+
+    const handlePaste = async (e) => {
+        const file = e.clipboardData?.files?.[0];
+        if (!file) return; // If text is pasted, let it paste normally
+
+        const isImage = file.type.startsWith('image/');
+        if (!isImage) return; // Ignore non-image files
+
+        e.preventDefault(); // Stop image blob from pasting as text
+        setShowSuggestions(false);
+        setExtractedQuestions([]);
+
+        const parsed = await extractFromFile(file);
+        setExtractedQuestions(parsed);
+        setShowSuggestions(parsed.length > 0);
+
+        if (parsed.length === 0) {
+            alert('No questions could be detected in this pasted image. Try a clearer image or check the file.');
+        }
+    };
+
+    // When user clicks a suggestion — fill question field + open answer picker
+    const handleSuggestionClick = (item, idx) => {
+        setQuestion(item.question);
+        
+        // Remove the clicked question from the extracted list
+        setExtractedQuestions(prev => prev.filter((_, i) => i !== idx));
+        setShowSuggestions(false);
+        
+        if (item.options && item.options.length > 0) {
+            setPickerOptions(item.options);
+            setShowAnswerPicker(true);
+        }
+    };
+
+    // When user picks the correct answer from the modal
+    const handleAnswerPick = (chosenOption) => {
+        setAnswer(chosenOption);
+        // Fill remaining option slots with the other options
+        const remaining = pickerOptions.filter(o => o !== chosenOption);
+        // Pad to 3 slots (the form has 3 other-options fields)
+        while (remaining.length < 3) remaining.push('');
+        setOptions(remaining.slice(0, 3));
+        setShowAnswerPicker(false);
+        setPickerOptions([]);
+    };
+
+    // Clear tags and options if question is cleared
+    useEffect(() => {
+        if (!question || question.trim() === '') {
+            setTags([]);
+            setCustomTags([]);
+            setHiddenOriginalTags([]);
+            setAnswer('');
+            setOptions(['', '', '']);
+        }
+    }, [question]);
 
     const questionWords = useMemo(() => {
         const combinedText = `${question || ''} ${answer || ''}`.trim();
@@ -342,7 +494,49 @@ const QuestionsAndAnswers = () => {
 
     return (
         <div className="qa-page-container">
-            {/* Delete Popup Modal */}
+            {/* ── Answer Picker Modal ───────────────────────────────────── */}
+            {showAnswerPicker && (
+                <div className="qa-modal-overlay" onClick={() => setShowAnswerPicker(false)}>
+                    <div className="qa-modal qa-answer-picker-modal" onClick={e => e.stopPropagation()}>
+                        <div className="qa-modal-header">
+                            <h4 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <IonIcon icon={checkmarkCircleOutline} style={{ color: '#10b981', fontSize: '1.4rem' }} />
+                                Select Correct Answer
+                            </h4>
+                            <div className="qa-modal-close" onClick={() => setShowAnswerPicker(false)}>
+                                <IonIcon icon={close} />
+                            </div>
+                        </div>
+                        <div className="qa-modal-body" style={{ textAlign: 'left', padding: '1rem' }}>
+                            <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '0.75rem', fontStyle: 'italic' }}>
+                                Click the option that is the <strong>correct answer</strong>. The remaining options will fill the other fields automatically.
+                            </p>
+                            <div className="qa-answer-options-grid">
+                                {pickerOptions.map((opt, idx) => (
+                                    <button
+                                        key={idx}
+                                        className="qa-answer-option-btn"
+                                        onClick={() => handleAnswerPick(opt)}
+                                        title={`Set "${opt}" as the correct answer`}
+                                    >
+                                        <span className="qa-answer-option-label">
+                                            {String.fromCharCode(65 + idx)}
+                                        </span>
+                                        <span className="qa-answer-option-text">{opt}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="qa-modal-footer" style={{ justifyContent: 'center' }}>
+                            <button className='qa-btn qa-btn-secondary' style={{ width: 'auto' }} onClick={() => setShowAnswerPicker(false)}>
+                                Skip — I'll type manually
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Delete Popup Modal ───────────────────────────────────── */}
             {isDeletePopup && (
                 <div className="qa-modal-overlay">
                     <div className="qa-modal">
@@ -365,7 +559,11 @@ const QuestionsAndAnswers = () => {
                 </div>
             )}
 
-            <div className="qa-main-layout">
+            <div 
+                className={`qa-main-layout ${isDragging ? 'is-dragging' : ''}`} 
+                ref={layoutRef} 
+                style={{ gridTemplateColumns: `${leftWidth}% 8px 1fr` }}
+            >
                 {/* Left Side: Form */}
                 <div className="qa-form-section">
                     <div className="qa-card">
@@ -392,73 +590,185 @@ const QuestionsAndAnswers = () => {
                                         <span className="qa-toggle-text">Previous Year Question</span>
                                     </label>
                                 </div>
+                                
+                                {/* Metadata Toggle Section (Dropdown) */}
+                                <details className="qa-metadata-details">
+                                    <summary className="qa-metadata-summary">
+                                        <div className="qa-metadata-summary-content">
+                                            <IonIcon icon={createOutline} />
+                                            <span>Metadata</span>
+                                        </div>
+                                    </summary>
+                                    <div className="qa-metadata-body">
+                                        <div className="qa-form-row col-2">
+                                            <div className="qa-form-group">
+                                                <label className="qa-label">Category</label>
+                                                <select className="qa-select" value={category} onChange={(e) => setCategory(e.target.value)}>
+                                                    {Details.CATEGORY.map((obj, index) => <option key={index} value={obj}>{obj}</option>)}
+                                                </select>
+                                            </div>
+                                            <div className="qa-form-group">
+                                                <label className="qa-label">Subject</label>
+                                                <select className="qa-select" value={subject} onChange={(e) => setSubject(e.target.value)}>
+                                                    {Details.SUBJECT.map((obj, index) => <option key={index} value={obj}>{obj}</option>)}
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        <div className="qa-form-row col-2">
+                                            <div className="qa-form-group">
+                                                <label className="qa-label">Level</label>
+                                                <select className="qa-select" value={post} onChange={(e) => setPost(e.target.value)}>
+                                                    {Details.LEVEL.map((obj, index) => <option key={index} value={obj}>{obj}</option>)}
+                                                </select>
+                                            </div>
+                                            <div className="qa-form-group">
+                                                <label className="qa-label">Topic</label>
+                                                <VoiceInputWrapper value={topic} onTextUpdate={setTopic} lang={voiceLang}>
+                                                    <ReactTransliterate
+                                                        value={topic}
+                                                        onChangeText={setTopic}
+                                                        lang="ml"
+                                                        enabled={voiceLang === 'ml-IN'}
+                                                        renderComponent={(props) => <input {...props} className="qa-input" placeholder="Enter topic" list="topics-list" required />}
+                                                    />
+                                                </VoiceInputWrapper>
+                                            </div>
+                                        </div>
+
+                                        <div className="qa-form-row col-2">
+                                            <div className="qa-form-group">
+                                                <label className="qa-label">Sub Topic</label>
+                                                <VoiceInputWrapper value={subTopic} onTextUpdate={setSubTopic} lang={voiceLang}>
+                                                    <ReactTransliterate
+                                                        value={subTopic}
+                                                        onChangeText={setSubTopic}
+                                                        lang="ml"
+                                                        enabled={voiceLang === 'ml-IN'}
+                                                        renderComponent={(props) => <input {...props} className="qa-input" placeholder="Enter sub topic" list="subtopics-list" />}
+                                                    />
+                                                </VoiceInputWrapper>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </details>
                             </div>
                         </div>
 
                         <div className="qa-form">
-                            {/* Filter/Select Bar */}
-                            <div className="qa-form-row col-2">
-                                <div className="qa-form-group">
-                                    <label className="qa-label">Category</label>
-                                    <select className="qa-select" value={category} onChange={(e) => setCategory(e.target.value)}>
-                                        {Details.CATEGORY.map((obj, index) => <option key={index} value={obj}>{obj}</option>)}
-                                    </select>
-                                </div>
-                                <div className="qa-form-group">
-                                    <label className="qa-label">Subject</label>
-                                    <select className="qa-select" value={subject} onChange={(e) => setSubject(e.target.value)}>
-                                        {Details.SUBJECT.map((obj, index) => <option key={index} value={obj}>{obj}</option>)}
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div className="qa-form-row col-2">
-                                <div className="qa-form-group">
-                                    <label className="qa-label">Level</label>
-                                    <select className="qa-select" value={post} onChange={(e) => setPost(e.target.value)}>
-                                        {Details.LEVEL.map((obj, index) => <option key={index} value={obj}>{obj}</option>)}
-                                    </select>
-                                </div>
-                                <div className="qa-form-group">
-                                    <label className="qa-label">Topic</label>
-                                    <VoiceInputWrapper value={topic} onTextUpdate={setTopic} lang={voiceLang}>
-                                        <ReactTransliterate
-                                            value={topic}
-                                            onChangeText={setTopic}
-                                            lang="ml"
-                                            enabled={voiceLang === 'ml-IN'}
-                                            renderComponent={(props) => <input {...props} className="qa-input" placeholder="Enter topic" list="topics-list" required />}
-                                        />
-                                    </VoiceInputWrapper>
-                                </div>
-                            </div>
-
-                            <div className="qa-form-row col-2">
-                                <div className="qa-form-group">
-                                    <label className="qa-label">Sub Topic</label>
-                                    <VoiceInputWrapper value={subTopic} onTextUpdate={setSubTopic} lang={voiceLang}>
-                                        <ReactTransliterate
-                                            value={subTopic}
-                                            onChangeText={setSubTopic}
-                                            lang="ml"
-                                            enabled={voiceLang === 'ml-IN'}
-                                            renderComponent={(props) => <input {...props} className="qa-input" placeholder="Enter sub topic" list="subtopics-list" />}
-                                        />
-                                    </VoiceInputWrapper>
-                                </div>
-                            </div>
+                            {/* Metadata Toggle Section was moved to header */}
 
                             <div className="qa-form-group">
-                                <label className="qa-label">Question</label>
-                                <VoiceInputWrapper value={question} onTextUpdate={setQuestion} lang={voiceLang} className="voice-input-wrapper-textarea">
-                                    <ReactTransliterate
-                                        value={question}
-                                        onChangeText={setQuestion}
-                                        lang="ml"
-                                        enabled={voiceLang === 'ml-IN'}
-                                        renderComponent={(props) => <textarea {...props} className={`qa-input qa-textarea ${isDuplicateQuestion ? 'qa-duplicate-input' : ''}`} placeholder="Type your question here..." rows="3" required />}
-                                    />
-                                </VoiceInputWrapper>
+                                <label className="qa-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                    Question
+                                    <span className="qa-ocr-label-hint">
+                                        <IonIcon icon={imageOutline} />
+                                        Drop image / PDF here to auto-extract
+                                    </span>
+                                </label>
+
+                                {/* ── Drag-and-drop / Paste zone ──────────────────── */}
+                                <div
+                                    ref={dropZoneRef}
+                                    className={`qa-drop-zone ${isDragOver ? 'dragging' : ''} ${isExtracting ? 'extracting' : ''}`}
+                                    onDragOver={handleDropZoneDragOver}
+                                    onDragLeave={handleDropZoneDragLeave}
+                                    onDrop={handleDropZoneDrop}
+                                    onPaste={handlePaste}
+                                >
+                                    <VoiceInputWrapper value={question} onTextUpdate={setQuestion} lang={voiceLang} className="voice-input-wrapper-textarea">
+                                        <ReactTransliterate
+                                            value={question}
+                                            onChangeText={setQuestion}
+                                            lang="ml"
+                                            enabled={voiceLang === 'ml-IN'}
+                                            renderComponent={(props) => <textarea {...props} className={`qa-input qa-textarea ${isDuplicateQuestion ? 'qa-duplicate-input' : ''}`} placeholder="Type your question here..." rows="3" required />}
+                                        />
+                                    </VoiceInputWrapper>
+
+                                    {/* Drag overlay hint */}
+                                    {isDragOver && !isExtracting && (
+                                        <div className="qa-drop-overlay">
+                                            <IonIcon icon={imageOutline} className="qa-drop-overlay-icon" />
+                                            <span>Release to read questions from image</span>
+                                        </div>
+                                    )}
+
+                                    {/* OCR loading overlay */}
+                                    {isExtracting && (
+                                        <div className="qa-extracting-overlay">
+                                            <div className="qa-extracting-spinner" />
+                                            <span className="qa-extracting-text">Reading image… {ocrProgress}%</span>
+                                            <div className="qa-extracting-bar">
+                                                <div className="qa-extracting-bar-fill" style={{ width: `${ocrProgress}%` }} />
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Show Extracted Questions Unhide Button */}
+                                {!showSuggestions && extractedQuestions.length > 0 && (
+                                    <div style={{ marginTop: '0.5rem', display: 'flex', justifyContent: 'flex-end' }}>
+                                        <button 
+                                            type="button"
+                                            className="qa-btn" 
+                                            style={{ fontSize: '0.8rem', padding: '0.3rem 0.6rem', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                            onClick={() => setShowSuggestions(true)}
+                                        >
+                                            <IonIcon icon={imageOutline} />
+                                            Show {extractedQuestions.length} Extracted Questions
+                                        </button>
+                                    </div>
+                                )}
+
+                                {/* OCR error */}
+                                {ocrError && (
+                                    <div className="qa-duplicate-warning">
+                                        <IonIcon icon={alertCircleOutline} style={{ fontSize: '1.2rem' }} />
+                                        <span>{ocrError}</span>
+                                    </div>
+                                )}
+
+                                {/* Extracted question suggestion list */}
+                                {showSuggestions && !showAnswerPicker && extractedQuestions.length > 0 && (
+                                    <div className="qa-suggestion-list">
+                                        <div className="qa-suggestion-header">
+                                            <IonIcon icon={imageOutline} />
+                                            <span>{extractedQuestions.length} question{extractedQuestions.length !== 1 ? 's' : ''} detected — click one to fill</span>
+                                            <button 
+                                                className="qa-suggestion-close" 
+                                                onClick={() => {
+                                                    setShowSuggestions(false);
+                                                    setExtractedQuestions([]);
+                                                }} 
+                                                title="Dismiss all"
+                                            >
+                                                <IonIcon icon={close} />
+                                            </button>
+                                        </div>
+                                        {extractedQuestions.map((item, idx) => (
+                                            <button
+                                                key={idx}
+                                                className="qa-suggestion-item"
+                                                onClick={() => handleSuggestionClick(item, idx)}
+                                                title={item.question}
+                                            >
+                                                <span className="qa-suggestion-num">{idx + 1}</span>
+                                                <span className="qa-suggestion-text">
+                                                    {item.question.length > 90
+                                                        ? item.question.slice(0, 90) + '…'
+                                                        : item.question}
+                                                </span>
+                                                {item.options.length > 0 && (
+                                                    <span className="qa-suggestion-opts-badge">
+                                                        {item.options.length} opts
+                                                    </span>
+                                                )}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+
                                 {isDuplicateQuestion && (
                                     <div className="qa-duplicate-warning">
                                         <IonIcon icon={alertCircleOutline} style={{ fontSize: '1.2rem' }} />
@@ -620,6 +930,9 @@ const QuestionsAndAnswers = () => {
                         </div>
                     </div>
                 </div>
+
+                {/* Resizer Handle */}
+                <div className="qa-resizer" onMouseDown={handleMouseDown}></div>
 
                 {/* Right Side: List */}
                 <div className="qa-list-section">
