@@ -2,17 +2,17 @@
    Variables & Theme
    ========================================= */
 :root {
-    --notes-primary: #0bc097;
-    --notes-primary-hover: #09a07d;
-    --notes-secondary: #6c757d;
-    --notes-danger: #dc3545;
-    --notes-danger-hover: #b02a37;
-    --notes-background: #f8f9fa;
+    --notes-primary: #0f172a;
+    --notes-primary-hover: #1e293b;
+    --notes-secondary: #64748b;
+    --notes-danger: #ef4444;
+    --notes-danger-hover: #dc2626;
+    --notes-background: #f8fafc;
     --notes-surface: #ffffff;
-    --notes-text-main: #2d3748;
-    --notes-text-muted: #718096;
+    --notes-text-main: #0f172a;
+    --notes-text-muted: #64748b;
     --notes-border: #e2e8f0;
-    --notes-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
+    --notes-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
     --notes-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
     --notes-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
     --notes-radius: 12px;
@@ -51,7 +51,7 @@
 
 .notes-main-layout {
     display: grid;
-    grid-template-columns: 450px 1fr;
+    grid-template-columns: 1fr 1fr;
     gap: var(--notes-spacing-md);
     max-width: 1600px;
     margin: 0 auto;
@@ -79,7 +79,7 @@
 .notes-card {
     background: var(--notes-surface);
     border-radius: var(--notes-radius);
-    box-shadow: var(--notes-shadow-md);
+    box-shadow: 0 4px 24px -4px rgba(0, 0, 0, 0.05);
     border: 1px solid var(--notes-border);
     overflow: hidden;
     display: flex;
@@ -101,9 +101,72 @@
     letter-spacing: -0.025em;
 }
 
+/* Metadata Toggle (Details/Summary) */
+.notes-metadata-details {
+    position: relative;
+    font-size: 0.9rem;
+}
+
+.notes-metadata-summary {
+    list-style: none;
+    cursor: pointer;
+    background: transparent;
+    border: 1px solid var(--notes-border);
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
+    color: var(--notes-text-main);
+}
+
+.notes-metadata-summary::-webkit-details-marker {
+    display: none;
+}
+
+.notes-metadata-summary:hover {
+    background: #f1f5f9;
+}
+
+.notes-metadata-summary-content {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.notes-metadata-details[open] .notes-metadata-summary {
+    background: #f1f5f9;
+    border-color: var(--notes-primary);
+}
+
+.notes-metadata-body {
+    position: absolute;
+    top: calc(100% + 0.5rem);
+    right: 0;
+    background: var(--notes-surface);
+    border: 1px solid var(--notes-border);
+    border-radius: var(--notes-radius);
+    padding: 1.5rem;
+    box-shadow: var(--notes-shadow-lg);
+    z-index: 50;
+    width: 600px;
+    max-width: 90vw;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+}
+
+
 /* =========================================
    Form Elements
    ========================================= */
+.notes-section-divider {
+    border-top: 1px solid var(--notes-border);
+    margin: 1.5rem 0;
+    padding-top: 1.5rem;
+}
 .notes-form {
     padding: var(--notes-spacing-md);
     overflow-y: auto;
@@ -131,27 +194,33 @@
 }
 
 .notes-label {
-    font-size: 0.875rem;
-    font-weight: 600;
-    color: var(--notes-text-main);
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--notes-text-muted);
 }
 
 .notes-input,
 .notes-select {
     padding: 0.75rem 1rem;
     border-radius: 8px;
-    border: 1px solid var(--notes-border);
+    border: 1px solid transparent;
     font-size: 0.95rem;
-    background-color: #ffffff;
+    background-color: #f1f5f9;
     transition: all 0.2s ease;
     color: var(--notes-text-main);
     outline: none;
+    box-sizing: border-box;
+    width: 100%;
 }
 
 .notes-input:focus,
-.notes-select:focus {
-    border-color: var(--notes-primary);
-    box-shadow: 0 0 0 3px rgba(11, 192, 151, 0.15);
+.notes-select:focus,
+.notes-textarea:focus {
+    background-color: #ffffff;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
 }
 
 .notes-textarea {
@@ -159,15 +228,13 @@
     min-height: 80px;
     padding: 0.75rem 1rem;
     border-radius: 8px;
-    border: 1px solid var(--notes-border);
+    border: 1px solid transparent;
+    background-color: #f1f5f9;
     font-size: 0.95rem;
     outline: none;
     transition: all 0.2s ease;
-}
-
-.notes-textarea:focus {
-    border-color: var(--notes-primary);
-    box-shadow: 0 0 0 3px rgba(11, 192, 151, 0.15);
+    box-sizing: border-box;
+    width: 100%;
 }
 
 .notes-dynamic-field {
@@ -185,18 +252,38 @@
 
 .notes-tag {
     position: relative;
-    background: #f1f5f9;
-    padding: 0.5rem 1.5rem 0.5rem 0.75rem;
+    background: #ffffff;
+    padding: 0.5rem 3.5rem 0.5rem 0.75rem;
     border-radius: 20px;
     font-size: 0.85rem;
     font-weight: 600;
     color: var(--notes-text-main);
     border: 1px solid var(--notes-border);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    display: flex;
+    align-items: center;
+}
+
+.notes-subheading-card {
+    position: relative;
+    background: #ffffff;
+    padding: 0.75rem 4rem 0.75rem 1rem;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    color: var(--notes-text-main);
+    border: 1px solid var(--notes-border);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    width: 100%;
+    margin-bottom: 0.5rem;
+}
+
+.notes-subheading-card-content {
+    line-height: 1.5;
 }
 
 .notes-tag-actions {
     position: absolute;
-    right: 6px;
+    right: 8px;
     top: 50%;
     transform: translateY(-50%);
     display: flex;
@@ -237,14 +324,15 @@
 }
 
 .notes-btn-primary {
-    background-color: var(--notes-primary);
+    background-color: #2563eb;
     color: white;
-    box-shadow: 0 4px 6px rgba(11, 192, 151, 0.2);
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
 }
 
 .notes-btn-primary:hover {
-    background-color: var(--notes-primary-hover);
-    transform: translateY(-1px);
+    background-color: #1d4ed8;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(37, 99, 235, 0.35);
 }
 
 .notes-btn-icon {
@@ -296,13 +384,15 @@
     position: absolute;
     top: 15px;
     right: 15px;
-    display: none;
+    display: flex;
     gap: 0.5rem;
     z-index: 10;
+    opacity: 0;
+    transition: opacity 0.2s ease;
 }
 
 .notesection:hover .edit {
-    display: flex;
+    opacity: 1;
 }
 
 .edit-icon {

@@ -46,7 +46,6 @@ const NoteList = ({ editProduct, onHandleDelete, data, isLoading, isError, error
                                     type="text"
                                     className="notes-input"
                                     placeholder="Search topic or subtopic..."
-                                    style={{ width: '100%', padding: '0.5rem 1rem', fontSize: '0.85rem' }}
                                 />
                             )}
                         />
@@ -297,81 +296,91 @@ const Notes = () => {
                 </div>
             )}
 
-            {/* Header Filters */}
-            <div className="notes-header-filters" style={{ borderTop: '4px solid var(--notes-primary)', padding: '1.2rem', gap: '1.5rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
-                <div className="notes-form-group" style={{ marginBottom: 0 }}>
-                    <label className="notes-label" style={{ fontSize: '0.8rem', color: 'var(--notes-text-muted)' }}>Category</label>
-                    <select className="notes-select" value={category} onChange={(e) => setCategory(e.target.value)}>
-                        {Details.CATEGORY.map((obj, index) => (
-                            <option key={index} value={obj}>{obj}</option>
-                        ))}
-                    </select>
-                </div>
-                <div className="notes-form-group" style={{ marginBottom: 0 }}>
-                    <label className="notes-label" style={{ fontSize: '0.8rem', color: 'var(--notes-text-muted)' }}>Subject</label>
-                    <select className="notes-select" value={subject} onChange={(e) => setSubject(e.target.value)}>
-                        {Details.SUBJECT.map((obj, index) => (
-                            <option key={index} value={obj}>{obj}</option>
-                        ))}
-                    </select>
-                </div>
-                <div className="notes-form-group" style={{ marginBottom: 0 }}>
-                    <label className="notes-label" style={{ fontSize: '0.8rem', color: 'var(--notes-text-muted)' }}>Post Details</label>
-                    <VoiceInputWrapper value={post} onTextUpdate={setPost} lang={voiceLang}>
-                        <ReactTransliterate
-                            value={post}
-                            onChangeText={setPost}
-                            lang="ml"
-                            enabled={voiceLang === 'ml-IN'}
-                            renderComponent={(props) => (
-                                <input
-                                    {...props}
-                                    className="notes-input"
-                                    style={{ width: '100%' }}
-                                    placeholder="Enter post details"
-                                    list="notes-posts-list"
-                                />
-                            )}
-                        />
-                    </VoiceInputWrapper>
-                </div>
-                <div className="notes-form-group" style={{ marginBottom: 0 }}>
-                    <label className="notes-label" style={{ fontSize: '0.8rem', color: 'var(--notes-text-muted)' }}>Topic</label>
-                    <VoiceInputWrapper value={topic} onTextUpdate={setTopic} lang={voiceLang}>
-                        <ReactTransliterate
-                            value={topic}
-                            onChangeText={setTopic}
-                            lang="ml"
-                            enabled={voiceLang === 'ml-IN'}
-                            renderComponent={(props) => (
-                                <input
-                                    {...props}
-                                    className="notes-input"
-                                    style={{ width: '100%' }}
-                                    placeholder="Enter topic"
-                                    list="notes-topics-list"
-                                />
-                            )}
-                        />
-                    </VoiceInputWrapper>
-                </div>
-            </div>
 
             <div className="notes-main-layout">
                 {/* Form Section */}
                 <div className="notes-card">
                     <div className="notes-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <h2 className="notes-title">{editId ? 'Update Note' : 'Add New Note'}</h2>
-                        <button 
-                            type="button"
-                            onClick={() => setVoiceLang(voiceLang === 'ml-IN' ? 'en-IN' : 'ml-IN')}
-                            className="notes-icon-btn"
-                            title={`Voice Language: ${voiceLang === 'ml-IN' ? 'Malayalam' : 'English'}`}
-                            style={{ background: 'transparent', border: 'none', fontSize: '1.5rem', color: voiceLang === 'ml-IN' ? '#10b981' : '#6366f1', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-                        >
-                            <IonIcon icon={languageOutline} />
-                            <span style={{ fontSize: '0.75rem', fontWeight: 'bold', marginLeft: '4px' }}>{voiceLang === 'ml-IN' ? 'ML' : 'EN'}</span>
-                        </button>
+                        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                            <button 
+                                type="button"
+                                onClick={() => setVoiceLang(voiceLang === 'ml-IN' ? 'en-IN' : 'ml-IN')}
+                                className="notes-icon-btn"
+                                title={`Voice Language: ${voiceLang === 'ml-IN' ? 'Malayalam' : 'English'}`}
+                                style={{ background: 'transparent', border: 'none', fontSize: '1.5rem', color: voiceLang === 'ml-IN' ? '#10b981' : '#6366f1', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                            >
+                                <IonIcon icon={languageOutline} />
+                                <span style={{ fontSize: '0.75rem', fontWeight: 'bold', marginLeft: '4px' }}>{voiceLang === 'ml-IN' ? 'ML' : 'EN'}</span>
+                            </button>
+                            
+                            <details className="notes-metadata-details">
+                                <summary className="notes-metadata-summary">
+                                    <div className="notes-metadata-summary-content">
+                                        <IonIcon icon={createOutline} />
+                                        <span>Metadata</span>
+                                    </div>
+                                </summary>
+                                <div className="notes-metadata-body">
+                                    <div className="notes-form-group" style={{ marginBottom: 0 }}>
+                                        <label className="notes-label" style={{ fontSize: '0.8rem', color: 'var(--notes-text-muted)' }}>Category</label>
+                                        <select className="notes-select" value={category} onChange={(e) => setCategory(e.target.value)}>
+                                            {Details.CATEGORY.map((obj, index) => (
+                                                <option key={index} value={obj}>{obj}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="notes-form-group" style={{ marginBottom: 0 }}>
+                                        <label className="notes-label" style={{ fontSize: '0.8rem', color: 'var(--notes-text-muted)' }}>Subject</label>
+                                        <select className="notes-select" value={subject} onChange={(e) => setSubject(e.target.value)}>
+                                            {Details.SUBJECT.map((obj, index) => (
+                                                <option key={index} value={obj}>{obj}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="notes-form-group" style={{ marginBottom: 0 }}>
+                                        <label className="notes-label" style={{ fontSize: '0.8rem', color: 'var(--notes-text-muted)' }}>Post Details</label>
+                                        <VoiceInputWrapper value={post} onTextUpdate={setPost} lang={voiceLang}>
+                                            <ReactTransliterate
+                                                value={post}
+                                                onChangeText={setPost}
+                                                lang="ml"
+                                                enabled={voiceLang === 'ml-IN'}
+                                                renderComponent={(props) => (
+                                                    <input
+                                                        {...props}
+                                                        className="notes-input"
+                                                        style={{ width: '100%' }}
+                                                        placeholder="Enter post details"
+                                                        list="notes-posts-list"
+                                                    />
+                                                )}
+                                            />
+                                        </VoiceInputWrapper>
+                                    </div>
+                                    <div className="notes-form-group" style={{ marginBottom: 0 }}>
+                                        <label className="notes-label" style={{ fontSize: '0.8rem', color: 'var(--notes-text-muted)' }}>Topic</label>
+                                        <VoiceInputWrapper value={topic} onTextUpdate={setTopic} lang={voiceLang}>
+                                            <ReactTransliterate
+                                                value={topic}
+                                                onChangeText={setTopic}
+                                                lang="ml"
+                                                enabled={voiceLang === 'ml-IN'}
+                                                renderComponent={(props) => (
+                                                    <input
+                                                        {...props}
+                                                        className="notes-input"
+                                                        style={{ width: '100%' }}
+                                                        placeholder="Enter topic"
+                                                        list="notes-topics-list"
+                                                    />
+                                                )}
+                                            />
+                                        </VoiceInputWrapper>
+                                    </div>
+                                </div>
+                            </details>
+                        </div>
                     </div>
                     <div className="notes-form">
                         <div className="notes-form-group">
@@ -433,7 +442,7 @@ const Notes = () => {
                             </VoiceInputWrapper>
                         </div>
 
-                        <div style={{ borderTop: '1px solid #e2e8f0', margin: '1rem 0', paddingTop: '1rem' }}>
+                        <div className="notes-section-divider">
                             <label className="notes-label">Sub Headings & Descriptions</label>
                             <div className="notes-dynamic-field">
                                 <VoiceInputWrapper value={subHeadingKey} onTextUpdate={setSubHeadingKey} className="notes-dynamic-voice" lang={voiceLang}>
@@ -474,8 +483,10 @@ const Notes = () => {
                             </VoiceInputWrapper>
                             <div className="notes-dynamic-list">
                                 {subHeading.map((obj, index) => (
-                                    <div key={index} className="notes-tag" style={{ borderRadius: '8px', paddingRight: '3.5rem' }}>
-                                        <strong>{obj?.key}:</strong> {obj?.value.substring(0, 20)}...
+                                    <div key={index} className="notes-subheading-card">
+                                        <div className="notes-subheading-card-content">
+                                            <strong>{obj?.key}:</strong> {obj?.value.substring(0, 40)}{obj?.value.length > 40 ? '...' : ''}
+                                        </div>
                                         <div className="notes-tag-actions">
                                             <div className="notes-tag-action notes-tag-edit" onClick={() => editSubHeading(index)} title="Edit">
                                                 <IonIcon icon={createOutline} />
@@ -489,7 +500,7 @@ const Notes = () => {
                             </div>
                         </div>
 
-                        <div style={{ borderTop: '1px solid #e2e8f0', margin: '1rem 0', paddingTop: '1rem' }}>
+                        <div className="notes-section-divider">
                             <label className="notes-label">Key Points</label>
                             <div className="notes-dynamic-field">
                                 <VoiceInputWrapper value={keyPoints} onTextUpdate={setKeyPoints} className="notes-dynamic-voice" lang={voiceLang}>
@@ -514,8 +525,8 @@ const Notes = () => {
                             </div>
                             <div className="notes-dynamic-list">
                                 {points.map((obj, index) => (
-                                    <div key={index} className="notes-tag" style={{ paddingRight: '3.5rem' }}>
-                                        {obj}
+                                    <div key={index} className="notes-tag">
+                                        <span>{obj}</span>
                                         <div className="notes-tag-actions">
                                             <div className="notes-tag-action notes-tag-edit" onClick={() => editPoint(index)} title="Edit">
                                                 <IonIcon icon={createOutline} />

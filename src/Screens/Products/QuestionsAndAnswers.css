@@ -53,7 +53,7 @@
 }
 
 .qa-resizer {
-    width: 8px;
+    width: 24px;
     background-color: transparent;
     cursor: col-resize;
     position: relative;
@@ -85,7 +85,7 @@
 .qa-card {
     background: var(--qa-surface);
     border-radius: var(--qa-radius);
-    box-shadow: var(--qa-shadow-md);
+    box-shadow: 0 4px 24px -4px rgba(0, 0, 0, 0.05);
     border: 1px solid var(--qa-border);
     overflow: hidden;
     display: flex;
@@ -267,18 +267,20 @@ details[open] .qa-metadata-summary-icon {
 }
 
 .qa-label {
-    font-size: 0.875rem;
-    font-weight: 600;
-    color: var(--qa-text-main);
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--qa-text-muted);
 }
 
 .qa-input,
 .qa-select {
     padding: 0.75rem 1rem;
     border-radius: 8px;
-    border: 1px solid var(--qa-border);
+    border: 1px solid transparent;
     font-size: 0.95rem;
-    background-color: #ffffff;
+    background-color: #f1f5f9;
     transition: all 0.2s ease;
     color: var(--qa-text-main);
     outline: none;
@@ -287,9 +289,11 @@ details[open] .qa-metadata-summary-icon {
 }
 
 .qa-input:focus,
-.qa-select:focus {
-    border-color: var(--qa-primary);
-    box-shadow: 0 0 0 3px rgba(11, 192, 151, 0.15);
+.qa-select:focus,
+.qa-textarea:focus {
+    background-color: #ffffff;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
 }
 
 .qa-textarea {
@@ -357,14 +361,15 @@ details[open] .qa-metadata-summary-icon {
 }
 
 .qa-btn-primary {
-    background-color: var(--qa-primary);
+    background-color: #2563eb;
     color: white;
-    box-shadow: 0 4px 6px rgba(11, 192, 151, 0.2);
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
 }
 
 .qa-btn-primary:hover {
-    background-color: var(--qa-primary-hover);
-    transform: translateY(-1px);
+    background-color: #1d4ed8;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(37, 99, 235, 0.35);
 }
 
 .qa-btn-secondary {

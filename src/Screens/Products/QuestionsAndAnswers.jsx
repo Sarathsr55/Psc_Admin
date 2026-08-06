@@ -562,7 +562,7 @@ const QuestionsAndAnswers = () => {
             <div 
                 className={`qa-main-layout ${isDragging ? 'is-dragging' : ''}`} 
                 ref={layoutRef} 
-                style={{ gridTemplateColumns: `${leftWidth}% 8px 1fr` }}
+                style={{ gridTemplateColumns: `${leftWidth}% 24px 1fr` }}
             >
                 {/* Left Side: Form */}
                 <div className="qa-form-section">
