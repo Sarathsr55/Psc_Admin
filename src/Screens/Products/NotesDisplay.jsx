@@ -23,14 +23,14 @@ export default function NotesDisplay({ data }) {
             </div>
 
             <h4 className="notes-display-heading">{data?.heading}</h4>
-            <p className="notes-display-description">{data?.description}</p>
+            <p className="notes-display-description" style={{ whiteSpace: 'pre-wrap' }}>{data?.description}</p>
 
             {data?.subheading && data.subheading.length > 0 && (
                 <div className="notes-subheadings-section">
                     {data.subheading.map((obj, index) => (
                         <div key={index} className="notes-display-subheading-item">
                             <div className="notes-subheading-key">{obj?.key}</div>
-                            <div className="notes-subheading-value">{obj?.value}</div>
+                            <div className="notes-subheading-value" style={{ whiteSpace: 'pre-wrap' }}>{obj?.value}</div>
                         </div>
                     ))}
                 </div>

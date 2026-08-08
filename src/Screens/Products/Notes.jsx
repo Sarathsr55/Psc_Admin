@@ -102,6 +102,8 @@ const Notes = () => {
     const [isDeletePopup, setIsDeletePopup] = useState(false)
     const [isDeleting, setIsDeleting] = useState(false)
     const [editId, setEditId] = useState('')
+    const [editSubHeadingIndex, setEditSubHeadingIndex] = useState(null)
+    const [editPointIndex, setEditPointIndex] = useState(null)
     const [voiceLang, setVoiceLang] = useState('ml-IN')
     const [searchQuery, setSearchQuery] = useState('')
     const token = localStorage.getItem('token')
@@ -135,7 +137,14 @@ const Notes = () => {
 
     const AddSubHeading = () => {
         if (subHeadingKey) {
-            setSubHeading([...subHeading, { key: subHeadingKey, value: subHeadingValue }])
+            if (editSubHeadingIndex !== null) {
+                const newSubHeading = [...subHeading];
+                newSubHeading[editSubHeadingIndex] = { key: subHeadingKey, value: subHeadingValue };
+                setSubHeading(newSubHeading);
+                setEditSubHeadingIndex(null);
+            } else {
+                setSubHeading([...subHeading, { key: subHeadingKey, value: subHeadingValue }])
+            }
             setSubHeadingKey('')
             setSubHeadingValue('')
         }
@@ -143,7 +152,14 @@ const Notes = () => {
 
     const AddPoints = () => {
         if (keyPoints) {
-            setPoints([...points, keyPoints])
+            if (editPointIndex !== null) {
+                const newPoints = [...points];
+                newPoints[editPointIndex] = keyPoints;
+                setPoints(newPoints);
+                setEditPointIndex(null);
+            } else {
+                setPoints([...points, keyPoints])
+            }
             setKeyPoints('')
         }
     }
@@ -162,14 +178,42 @@ const Notes = () => {
         const item = subHeading[i];
         setSubHeadingKey(item.key);
         setSubHeadingValue(item.value);
-        removeSubHeading(i);
+        setEditSubHeadingIndex(i);
     }
 
     const editPoint = (i) => {
         const item = points[i];
         setKeyPoints(item);
-        removePoints(i);
+        setEditPointIndex(i);
     }
+
+    const handleSubHeadingDragStart = (e, index) => {
+        e.dataTransfer.setData('subHeadingIndex', index);
+    };
+
+    const handleSubHeadingDrop = (e, dropIndex) => {
+        const dragIndex = parseInt(e.dataTransfer.getData('subHeadingIndex'), 10);
+        if (isNaN(dragIndex) || dragIndex === dropIndex) return;
+        const newSubHeading = [...subHeading];
+        const draggedItem = newSubHeading[dragIndex];
+        newSubHeading.splice(dragIndex, 1);
+        newSubHeading.splice(dropIndex, 0, draggedItem);
+        setSubHeading(newSubHeading);
+    };
+
+    const handlePointDragStart = (e, index) => {
+        e.dataTransfer.setData('pointIndex', index);
+    };
+
+    const handlePointDrop = (e, dropIndex) => {
+        const dragIndex = parseInt(e.dataTransfer.getData('pointIndex'), 10);
+        if (isNaN(dragIndex) || dragIndex === dropIndex) return;
+        const newPoints = [...points];
+        const draggedItem = newPoints[dragIndex];
+        newPoints.splice(dragIndex, 1);
+        newPoints.splice(dropIndex, 0, draggedItem);
+        setPoints(newPoints);
+    };
 
     const uploadNotes = async () => {
         const noteObject = {
@@ -230,9 +274,8 @@ const Notes = () => {
         setSubHeading([])
         setPoints([])
         setEditId('')
-        setSubTopic('')
-        setTopic('')
-        setPost('')
+        setEditSubHeadingIndex(null)
+        setEditPointIndex(null)
     }
 
     const handleSave = () => {
@@ -483,7 +526,15 @@ const Notes = () => {
                             </VoiceInputWrapper>
                             <div className="notes-dynamic-list">
                                 {subHeading.map((obj, index) => (
-                                    <div key={index} className="notes-subheading-card">
+                                    <div 
+                                        key={index} 
+                                        className="notes-subheading-card"
+                                        draggable
+                                        onDragStart={(e) => handleSubHeadingDragStart(e, index)}
+                                        onDragOver={(e) => e.preventDefault()}
+                                        onDrop={(e) => handleSubHeadingDrop(e, index)}
+                                        style={{ cursor: 'grab', background: editSubHeadingIndex === index ? '#e0f2fe' : undefined }}
+                                    >
                                         <div className="notes-subheading-card-content">
                                             <strong>{obj?.key}:</strong> {obj?.value.substring(0, 40)}{obj?.value.length > 40 ? '...' : ''}
                                         </div>
@@ -525,7 +576,15 @@ const Notes = () => {
                             </div>
                             <div className="notes-dynamic-list">
                                 {points.map((obj, index) => (
-                                    <div key={index} className="notes-tag">
+                                    <div 
+                                        key={index} 
+                                        className="notes-tag"
+                                        draggable
+                                        onDragStart={(e) => handlePointDragStart(e, index)}
+                                        onDragOver={(e) => e.preventDefault()}
+                                        onDrop={(e) => handlePointDrop(e, index)}
+                                        style={{ cursor: 'grab', background: editPointIndex === index ? '#e0f2fe' : undefined }}
+                                    >
                                         <span>{obj}</span>
                                         <div className="notes-tag-actions">
                                             <div className="notes-tag-action notes-tag-edit" onClick={() => editPoint(index)} title="Edit">
