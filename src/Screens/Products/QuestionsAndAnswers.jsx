@@ -8,11 +8,12 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import QuestionDisplay from './QuestionDisplay'
 import Details from '../../constants/Details'
 import { IonIcon } from '@ionic/react'
-import { close, createOutline, trashOutline, addOutline, cloudUploadOutline, languageOutline, alertCircleOutline, imageOutline, checkmarkCircleOutline } from 'ionicons/icons'
+import { close, createOutline, trashOutline, addOutline, cloudUploadOutline, languageOutline, alertCircleOutline, imageOutline, checkmarkCircleOutline, happyOutline, arrowUpOutline, arrowDownOutline, swapVerticalOutline, shuffleOutline, textOutline, chevronBackOutline, copyOutline, linkOutline } from 'ionicons/icons'
 import animation from '../../constants/animation'
 import QuestionsList from './QuestionsList'
 import { Loader } from '../../Components/Loader/Loader'
 import { useImageOCR } from '../../utils/useImageOCR'
+import EmojiPicker from 'emoji-picker-react'
 
 const QuestionsDisplayList = ({ data, isLoading, isError, error, searchQuery, filterSubject, onEdit, onDelete }) => {
     if (isLoading) return <div className="qa-loading"><Loader size={100} /></div>
@@ -95,13 +96,32 @@ const QuestionsAndAnswers = () => {
     const token = localStorage.getItem('token')
 
     // ── Image OCR state ───────────────────────────────────────────────────────
-    const { extractFromFile, isExtracting, ocrProgress, ocrError } = useImageOCR()
+    const { extractFromFile, extractCanvasesFromPDF, runOCR, isExtracting, ocrProgress, ocrError } = useImageOCR()
     const [isDragOver, setIsDragOver] = useState(false)
     const [extractedQuestions, setExtractedQuestions] = useState([]) // [{question, options[]}]
     const [showSuggestions, setShowSuggestions] = useState(false)
+    const [showPdfVerification, setShowPdfVerification] = useState(false)
+    const [pdfPages, setPdfPages] = useState([])
+    const [selectedPdfPages, setSelectedPdfPages] = useState([])
     const [showAnswerPicker, setShowAnswerPicker] = useState(false)
     const [pickerOptions, setPickerOptions] = useState([])
+    const [activeOcrQuestionText, setActiveOcrQuestionText] = useState(null)
     const dropZoneRef = useRef(null)
+
+    // ── PDF Question List Review state ────────────────────────────────────────
+    const [pdfReviewStep, setPdfReviewStep] = useState('pages') // 'pages' | 'list'
+    const [ocrResults, setOcrResults] = useState([]) // [{question, options}]
+    const [dragIdx, setDragIdx] = useState(null)
+    const [inlineEditIdx, setInlineEditIdx] = useState(null)
+    const [inlineEditData, setInlineEditData] = useState(null)
+    
+    const [rightPanelMode, setRightPanelMode] = useState('list') // 'list' or 'pdf'
+    const [sidePdfUrl, setSidePdfUrl] = useState('')
+    const [showSecondViewer, setShowSecondViewer] = useState(false)
+    const [bottomPdfUrl, setBottomPdfUrl] = useState('')
+
+    const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+    const [activeEmojiField, setActiveEmojiField] = useState(null)
     
     // ── Resizable Split-Pane State ─────────────────────────────────────────────
     const [leftWidth, setLeftWidth] = useState(() => {
@@ -111,20 +131,39 @@ const QuestionsAndAnswers = () => {
     const [isDragging, setIsDragging] = useState(false);
     const layoutRef = useRef(null);
 
+    const [topHeight, setTopHeight] = useState(() => {
+        const saved = localStorage.getItem('qaVerticalSplit');
+        return saved ? parseFloat(saved) : 50;
+    });
+    const [isVerticalDragging, setIsVerticalDragging] = useState(false);
+    const rightPanelRef = useRef(null);
+
     const handleMouseDown = useCallback((e) => {
         e.preventDefault();
         setIsDragging(true);
     }, []);
 
+    const handleVerticalMouseDown = useCallback((e) => {
+        e.preventDefault();
+        setIsVerticalDragging(true);
+    }, []);
+
     useEffect(() => {
         const handleMouseMove = (e) => {
-            if (!isDragging || !layoutRef.current) return;
-            const containerRect = layoutRef.current.getBoundingClientRect();
-            let newWidth = ((e.clientX - containerRect.left) / containerRect.width) * 100;
-            // Constrain between 30% and 90%
-            if (newWidth < 30) newWidth = 30;
-            if (newWidth > 90) newWidth = 90;
-            setLeftWidth(newWidth);
+            if (isDragging && layoutRef.current) {
+                const containerRect = layoutRef.current.getBoundingClientRect();
+                let newWidth = ((e.clientX - containerRect.left) / containerRect.width) * 100;
+                if (newWidth < 30) newWidth = 30;
+                if (newWidth > 90) newWidth = 90;
+                setLeftWidth(newWidth);
+            }
+            if (isVerticalDragging && rightPanelRef.current) {
+                const containerRect = rightPanelRef.current.getBoundingClientRect();
+                let newHeight = ((e.clientY - containerRect.top) / containerRect.height) * 100;
+                if (newHeight < 10) newHeight = 10;
+                if (newHeight > 90) newHeight = 90;
+                setTopHeight(newHeight);
+            }
         };
 
         const handleMouseUp = () => {
@@ -132,9 +171,13 @@ const QuestionsAndAnswers = () => {
                 setIsDragging(false);
                 localStorage.setItem('qaSplitWidth', leftWidth);
             }
+            if (isVerticalDragging) {
+                setIsVerticalDragging(false);
+                localStorage.setItem('qaVerticalSplit', topHeight);
+            }
         };
 
-        if (isDragging) {
+        if (isDragging || isVerticalDragging) {
             window.addEventListener('mousemove', handleMouseMove);
             window.addEventListener('mouseup', handleMouseUp);
         }
@@ -143,7 +186,58 @@ const QuestionsAndAnswers = () => {
             window.removeEventListener('mousemove', handleMouseMove);
             window.removeEventListener('mouseup', handleMouseUp);
         };
-    }, [isDragging, leftWidth]);
+    }, [isDragging, leftWidth, isVerticalDragging, topHeight]);
+
+    // ── Auto-Save Drafts ──────────────────────────────────────────────────────
+    useEffect(() => {
+        const draftOcr = localStorage.getItem('qa_draft_ocr');
+        const draftExtracted = localStorage.getItem('qa_draft_extracted');
+        
+        if (draftOcr || draftExtracted) {
+            if (window.confirm("You have unsaved extracted questions from a previous session. Do you want to restore them?")) {
+                let restored = false;
+                if (draftOcr) {
+                    try {
+                        const parsed = JSON.parse(draftOcr);
+                        if (parsed.length > 0) {
+                            setOcrResults(parsed);
+                            setPdfReviewStep('list');
+                            setShowPdfVerification(true);
+                            restored = true;
+                        }
+                    } catch(e) {}
+                }
+                if (draftExtracted && !restored) {
+                    try {
+                        const parsed = JSON.parse(draftExtracted);
+                        if (parsed.length > 0) {
+                            setExtractedQuestions(parsed);
+                            setShowSuggestions(true);
+                        }
+                    } catch(e) {}
+                }
+            } else {
+                localStorage.removeItem('qa_draft_ocr');
+                localStorage.removeItem('qa_draft_extracted');
+            }
+        }
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+    useEffect(() => {
+        if (ocrResults && ocrResults.length > 0) {
+            localStorage.setItem('qa_draft_ocr', JSON.stringify(ocrResults));
+        } else {
+            localStorage.removeItem('qa_draft_ocr');
+        }
+    }, [ocrResults]);
+
+    useEffect(() => {
+        if (extractedQuestions && extractedQuestions.length > 0) {
+            localStorage.setItem('qa_draft_extracted', JSON.stringify(extractedQuestions));
+        } else {
+            localStorage.removeItem('qa_draft_extracted');
+        }
+    }, [extractedQuestions]);
 
     const isDuplicateQuestion = useMemo(() => {
         if (!question || !question.trim() || !data) return false;
@@ -157,6 +251,30 @@ const QuestionsAndAnswers = () => {
         // Exclude the currently editing question from the duplicate check
         return data.some(obj => obj._id !== editId && sanitize(obj.question) === currentSanitized);
     }, [question, data, editId]);
+
+    // ── Auto-scrub saved questions from OCR drafts ─────────────────────────────
+    useEffect(() => {
+        if (!data || data.length === 0) return;
+        
+        const sanitize = (str) => {
+            if (!str) return '';
+            return str.toLowerCase().replace(/[\u200B-\u200D\uFEFF\s]/g, '');
+        };
+        
+        const dataSet = new Set(data.map(d => sanitize(d.question)));
+        
+        setOcrResults(prev => {
+            if (!prev || prev.length === 0) return prev;
+            const filtered = prev.filter(q => !dataSet.has(sanitize(q.question)));
+            return filtered.length !== prev.length ? filtered : prev;
+        });
+        
+        setExtractedQuestions(prev => {
+            if (!prev || prev.length === 0) return prev;
+            const filtered = prev.filter(q => !dataSet.has(sanitize(q.question)));
+            return filtered.length !== prev.length ? filtered : prev;
+        });
+    }, [data]);
 
     const relatedNotes = useMemo(() => {
         if (!data || !Array.isArray(data)) return [];
@@ -236,14 +354,150 @@ const QuestionsAndAnswers = () => {
 
         setShowSuggestions(false);
         setExtractedQuestions([]);
+        setOcrResults([]); // Clear previous extraction and draft
 
-        const parsed = await extractFromFile(file);
-        setExtractedQuestions(parsed);
-        setShowSuggestions(parsed.length > 0);
+        if (isPDF) {
+            const canvases = await extractCanvasesFromPDF(file);
+            setPdfPages(canvases);
+            setSelectedPdfPages(new Array(canvases.length).fill(true));
+            setPdfReviewStep('pages');
+            setShowPdfVerification(true);
+        } else {
+            const parsed = await extractFromFile(file);
+            setExtractedQuestions(parsed);
+            setShowSuggestions(parsed.length > 0);
 
-        if (parsed.length === 0) {
-            alert('No questions could be detected in this image. Try a clearer image or check the file.');
+            if (parsed.length === 0) {
+                alert('No questions could be detected in this image. Try a clearer image or check the file.');
+            }
         }
+    };
+
+    const handleProceedPdf = async () => {
+        const selectedCanvases = pdfPages.filter((_, idx) => selectedPdfPages[idx]);
+        if (selectedCanvases.length === 0) return;
+        
+        const parsed = await runOCR(selectedCanvases);
+        setOcrResults(prev => [...prev, ...parsed]);
+        
+        if (parsed.length === 0) {
+            alert('No questions could be detected in the selected pages.');
+        } else {
+            // Auto-uncheck processed pages to prevent duplicate extraction on resume
+            setSelectedPdfPages(new Array(pdfPages.length).fill(false));
+            setPdfReviewStep('list');
+        }
+    };
+
+    const handleConfirmQuestions = () => {
+        setExtractedQuestions(ocrResults);
+        setShowSuggestions(ocrResults.length > 0);
+        setShowPdfVerification(false);
+        setPdfReviewStep('pages');
+    };
+
+    const togglePdfPageSelection = (idx) => {
+        const updated = [...selectedPdfPages];
+        updated[idx] = !updated[idx];
+        setSelectedPdfPages(updated);
+    };
+
+    // ── Question List Sorting & Reordering helpers ────────────────────────────
+    const moveQuestion = (fromIdx, toIdx) => {
+        if (toIdx < 0 || toIdx >= ocrResults.length) return;
+        const updated = [...ocrResults];
+        const [moved] = updated.splice(fromIdx, 1);
+        updated.splice(toIdx, 0, moved);
+        setOcrResults(updated);
+    };
+
+    const sortQuestionsAlpha = () => {
+        setOcrResults(prev => [...prev].sort((a, b) => a.question.localeCompare(b.question)));
+    };
+
+    const sortQuestionsByLength = () => {
+        setOcrResults(prev => [...prev].sort((a, b) => a.question.length - b.question.length));
+    };
+
+    const shuffleQuestions = () => {
+        setOcrResults(prev => {
+            const arr = [...prev];
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+            return arr;
+        });
+    };
+
+    const deleteOcrQuestion = (idx) => {
+        setOcrResults(prev => prev.filter((_, i) => i !== idx));
+    };
+
+    const mergeWithPrevious = (idx) => {
+        if (idx <= 0 || idx >= ocrResults.length) return;
+        setOcrResults(prev => {
+            const updated = [...prev];
+            const prevQ = updated[idx - 1];
+            const currQ = updated[idx];
+            
+            const combinedQuestion = prevQ.question + '\n' + currQ.question;
+            const combinedOptions = [...(prevQ.options || []), ...(currQ.options || [])].filter(o => o && o.trim() !== '');
+            while (combinedOptions.length < 4) combinedOptions.push('');
+            
+            updated[idx - 1] = {
+                ...prevQ,
+                question: combinedQuestion,
+                options: combinedOptions.slice(0, 4)
+            };
+            updated.splice(idx, 1);
+            return updated;
+        });
+    };
+
+    const duplicateQuestion = (idx) => {
+        setOcrResults(prev => {
+            const updated = [...prev];
+            const clone = JSON.parse(JSON.stringify(updated[idx]));
+            updated.splice(idx + 1, 0, clone);
+            return updated;
+        });
+    };
+
+    const startInlineEdit = (idx) => {
+        setInlineEditIdx(idx);
+        setInlineEditData(JSON.parse(JSON.stringify(ocrResults[idx])));
+    };
+
+    const saveInlineEdit = () => {
+        if (inlineEditIdx !== null && inlineEditData) {
+            setOcrResults(prev => {
+                const updated = [...prev];
+                updated[inlineEditIdx] = inlineEditData;
+                return updated;
+            });
+            setInlineEditIdx(null);
+            setInlineEditData(null);
+        }
+    };
+
+    const cancelInlineEdit = () => {
+        setInlineEditIdx(null);
+        setInlineEditData(null);
+    };
+
+    const handleQuestionDragStart = (idx) => {
+        setDragIdx(idx);
+    };
+
+    const handleQuestionDragOver = (e) => {
+        e.preventDefault();
+    };
+
+    const handleQuestionDrop = (targetIdx) => {
+        if (dragIdx === null || dragIdx === targetIdx) return;
+        moveQuestion(dragIdx, targetIdx);
+        setDragIdx(null);
     };
 
     const handlePaste = async (e) => {
@@ -269,6 +523,7 @@ const QuestionsAndAnswers = () => {
     // When user clicks a suggestion — fill question field + open answer picker
     const handleSuggestionClick = (item, idx) => {
         setQuestion(item.question);
+        setActiveOcrQuestionText(item.question);
         
         // Remove the clicked question from the extracted list
         setExtractedQuestions(prev => prev.filter((_, i) => i !== idx));
@@ -292,6 +547,20 @@ const QuestionsAndAnswers = () => {
         setPickerOptions([]);
     };
 
+    const handleEmojiClick = (emojiObject) => {
+        const emoji = emojiObject.emoji;
+        switch (activeEmojiField) {
+            case 'question': setQuestion(prev => (prev || '') + emoji); break;
+            case 'answer': setAnswer(prev => (prev || '') + emoji); break;
+            case 'option0': handleOptionChange(0, (options[0] || '') + emoji); break;
+            case 'option1': handleOptionChange(1, (options[1] || '') + emoji); break;
+            case 'option2': handleOptionChange(2, (options[2] || '') + emoji); break;
+            case 'review': setReview(prev => (prev || '') + emoji); break;
+            default: break;
+        }
+        setShowEmojiPicker(false);
+    };
+
     // Clear tags and options if question is cleared
     useEffect(() => {
         if (!question || question.trim() === '') {
@@ -300,6 +569,7 @@ const QuestionsAndAnswers = () => {
             setHiddenOriginalTags([]);
             setAnswer('');
             setOptions(['', '', '']);
+            setActiveOcrQuestionText(null);
         }
     }, [question]);
 
@@ -327,6 +597,11 @@ const QuestionsAndAnswers = () => {
     const uniqueTopics = useMemo(() => {
         if (!data) return [];
         return Array.from(new Set(data.map(q => q.topic).filter(Boolean)));
+    }, [data]);
+
+    const uniqueSubjects = useMemo(() => {
+        if (!data) return Details.SUBJECT;
+        return Array.from(new Set([...Details.SUBJECT, ...data.map(q => q.subject).filter(Boolean)]));
     }, [data]);
 
     const uniqueSubTopics = useMemo(() => {
@@ -412,6 +687,13 @@ const QuestionsAndAnswers = () => {
             setHiddenOriginalTags([])
             setReview('')
             setShowRelatedNotes(false)
+
+            if (activeOcrQuestionText) {
+                setOcrResults(prev => prev.filter(q => q.question !== activeOcrQuestionText));
+                setExtractedQuestions(prev => prev.filter(q => q.question !== activeOcrQuestionText));
+                setActiveOcrQuestionText(null);
+            }
+
             queryClient.invalidateQueries(['questions'])
         }
     }
@@ -494,6 +776,205 @@ const QuestionsAndAnswers = () => {
 
     return (
         <div className="qa-page-container">
+            {/* ── PDF Verification Modal (2-step: pages → question list) ─── */}
+            {showPdfVerification && (
+                <div className="qa-modal-overlay" onClick={() => { if (!isExtracting) setShowPdfVerification(false); }}>
+                    <div className="qa-modal" style={{ maxWidth: pdfReviewStep === 'list' ? '900px' : '800px', width: '92%', transition: 'max-width 0.3s ease' }} onClick={e => e.stopPropagation()}>
+                        {/* ── Header ─── */}
+                        <div className="qa-modal-header">
+                            <h4 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                {pdfReviewStep === 'list' && (
+                                    <IonIcon icon={chevronBackOutline} style={{ cursor: 'pointer', fontSize: '1.2rem' }} onClick={() => setPdfReviewStep('pages')} title="Back to page selection" />
+                                )}
+                                {pdfReviewStep === 'pages' ? 'Step 1 — Select PDF Pages' : 'Step 2 — Review Extracted Questions'}
+                            </h4>
+                            <div className="qa-modal-close" onClick={() => { if (!isExtracting) setShowPdfVerification(false); }}>
+                                <IonIcon icon={close} />
+                            </div>
+                        </div>
+
+                        {/* ── Step indicator ─── */}
+                        <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', padding: '0.5rem 1rem 0' }}>
+                            <div style={{ width: '40%', height: '4px', borderRadius: '2px', background: '#3b82f6', transition: 'opacity 0.3s', opacity: pdfReviewStep === 'pages' ? 1 : 0.3 }} />
+                            <div style={{ width: '40%', height: '4px', borderRadius: '2px', background: '#3b82f6', transition: 'opacity 0.3s', opacity: pdfReviewStep === 'list' ? 1 : 0.3 }} />
+                        </div>
+
+                        {/* ── Body ─── */}
+                        <div className="qa-modal-body" style={{ maxHeight: '65vh', overflowY: 'auto' }}>
+
+                            {/* Step 1: Page selection */}
+                            {pdfReviewStep === 'pages' && (
+                                <>
+                                    <p style={{ marginBottom: '1rem', color: '#64748b', fontSize: '0.9rem' }}>
+                                        Select the pages you want to extract questions from. Uncheck irrelevant pages to speed up processing.
+                                    </p>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '1rem' }}>
+                                        {pdfPages.map((dataUrl, idx) => (
+                                            <div
+                                                key={idx}
+                                                onClick={() => togglePdfPageSelection(idx)}
+                                                style={{
+                                                    cursor: 'pointer',
+                                                    border: selectedPdfPages[idx] ? '2px solid #3b82f6' : '2px solid #e2e8f0',
+                                                    borderRadius: '8px',
+                                                    padding: '4px',
+                                                    position: 'relative',
+                                                    opacity: selectedPdfPages[idx] ? 1 : 0.5,
+                                                    transition: 'all 0.2s ease'
+                                                }}
+                                            >
+                                                <img src={dataUrl} alt={`Page ${idx + 1}`} style={{ width: '100%', height: 'auto', display: 'block', borderRadius: '4px' }} />
+                                                <div style={{ position: 'absolute', top: '8px', right: '8px', background: 'white', borderRadius: '50%', padding: '2px', display: 'flex' }}>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedPdfPages[idx] || false}
+                                                        onChange={() => togglePdfPageSelection(idx)}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                                                    />
+                                                </div>
+                                                <div style={{ textAlign: 'center', marginTop: '4px', fontSize: '0.8rem', fontWeight: 600 }}>Page {idx + 1}</div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </>
+                            )}
+
+                            {/* Step 2: Question list review */}
+                            {pdfReviewStep === 'list' && (
+                                <>
+                                    <p style={{ marginBottom: '0.75rem', color: '#64748b', fontSize: '0.85rem' }}>
+                                        {ocrResults.length} question{ocrResults.length !== 1 ? 's' : ''} extracted. Drag to reorder, use sort buttons, or remove unwanted items.
+                                    </p>
+
+                                    {/* Sort toolbar */}
+                                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+                                        <button className="qa-btn qa-btn-secondary" style={{ fontSize: '0.75rem', padding: '4px 10px', display: 'flex', alignItems: 'center', gap: '4px' }} onClick={sortQuestionsAlpha} title="Sort A → Z">
+                                            <IonIcon icon={textOutline} /> A → Z
+                                        </button>
+                                        <button className="qa-btn qa-btn-secondary" style={{ fontSize: '0.75rem', padding: '4px 10px', display: 'flex', alignItems: 'center', gap: '4px' }} onClick={sortQuestionsByLength} title="Sort by question length (shortest first)">
+                                            <IonIcon icon={swapVerticalOutline} /> Short → Long
+                                        </button>
+                                        <button className="qa-btn qa-btn-secondary" style={{ fontSize: '0.75rem', padding: '4px 10px', display: 'flex', alignItems: 'center', gap: '4px' }} onClick={shuffleQuestions} title="Randomize order">
+                                            <IonIcon icon={shuffleOutline} /> Shuffle
+                                        </button>
+                                    </div>
+
+                                    {/* Question cards */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                        {ocrResults.map((item, idx) => (
+                                            <div
+                                                key={idx}
+                                                draggable={inlineEditIdx !== idx}
+                                                onDragStart={() => handleQuestionDragStart(idx)}
+                                                onDragOver={handleQuestionDragOver}
+                                                onDrop={() => handleQuestionDrop(idx)}
+                                                style={{
+                                                    background: dragIdx === idx ? '#eff6ff' : '#f8fafc',
+                                                    border: dragIdx === idx ? '2px dashed #3b82f6' : '1px solid #e2e8f0',
+                                                    borderRadius: '8px',
+                                                    padding: '0.75rem',
+                                                    cursor: inlineEditIdx === idx ? 'default' : 'grab',
+                                                    transition: 'all 0.15s ease'
+                                                }}
+                                            >
+                                                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
+                                                    {/* Drag handle + number */}
+                                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', minWidth: '28px', paddingTop: '2px' }}>
+                                                        <span style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 700 }}>#{idx + 1}</span>
+                                                        <IonIcon icon={swapVerticalOutline} style={{ fontSize: '1rem', color: '#94a3b8' }} />
+                                                    </div>
+
+                                                    {/* Question text / Edit Form */}
+                                                    {inlineEditIdx === idx ? (
+                                                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                                            <textarea
+                                                                value={inlineEditData?.question || ''}
+                                                                onChange={(e) => setInlineEditData({ ...inlineEditData, question: e.target.value })}
+                                                                style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.85rem', fontFamily: 'inherit', resize: 'vertical', minHeight: '60px' }}
+                                                            />
+                                                            <div style={{ display: 'grid', gap: '0.25rem' }}>
+                                                                {inlineEditData?.options?.map((opt, oIdx) => (
+                                                                    <div key={oIdx} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                                        <span style={{ fontWeight: 700, color: '#94a3b8', fontSize: '0.8rem', width: '15px' }}>{String.fromCharCode(65 + oIdx)}.</span>
+                                                                        <input
+                                                                            type="text"
+                                                                            value={opt || ''}
+                                                                            onChange={(e) => {
+                                                                                const newOpts = [...inlineEditData.options]
+                                                                                newOpts[oIdx] = e.target.value
+                                                                                setInlineEditData({ ...inlineEditData, options: newOpts })
+                                                                            }}
+                                                                            style={{ flex: 1, padding: '0.25rem 0.5rem', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.8rem' }}
+                                                                        />
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
+                                                                <button className="qa-btn qa-btn-primary" style={{ padding: '2px 10px', fontSize: '0.75rem', height: 'auto', minHeight: '24px' }} onClick={saveInlineEdit}>Save</button>
+                                                                <button className="qa-btn qa-btn-secondary" style={{ padding: '2px 10px', fontSize: '0.75rem', height: 'auto', minHeight: '24px' }} onClick={cancelInlineEdit}>Cancel</button>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <div style={{ flex: 1 }}>
+                                                            <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 600, color: '#1e293b' }}>
+                                                                {item.question}
+                                                            </p>
+                                                            {item.options && item.options.filter(o => o).length > 0 && (
+                                                                <div style={{ marginTop: '0.35rem', paddingLeft: '0.5rem' }}>
+                                                                    {item.options.map((opt, oIdx) => (
+                                                                        opt && <p key={oIdx} style={{ margin: '2px 0', fontSize: '0.8rem', color: '#475569' }}>
+                                                                            <span style={{ fontWeight: 700, color: '#94a3b8', marginRight: '4px' }}>{String.fromCharCode(65 + oIdx)}.</span> {opt}
+                                                                        </p>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )}
+
+                                                    {/* Move up/down, Edit, & delete */}
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                                        <IonIcon icon={arrowUpOutline} style={{ cursor: idx === 0 ? 'default' : 'pointer', color: idx === 0 ? '#cbd5e1' : '#64748b', fontSize: '1rem' }} onClick={() => moveQuestion(idx, idx - 1)} />
+                                                        <IonIcon icon={arrowDownOutline} style={{ cursor: idx === ocrResults.length - 1 ? 'default' : 'pointer', color: idx === ocrResults.length - 1 ? '#cbd5e1' : '#64748b', fontSize: '1rem' }} onClick={() => moveQuestion(idx, idx + 1)} />
+                                                        <IonIcon icon={createOutline} style={{ cursor: 'pointer', color: '#3b82f6', fontSize: '1rem', marginTop: '4px' }} onClick={() => startInlineEdit(idx)} title="Edit question text and options inline" />
+                                                        <IonIcon icon={copyOutline} style={{ cursor: 'pointer', color: '#10b981', fontSize: '1rem', marginTop: '4px' }} onClick={() => duplicateQuestion(idx)} title="Duplicate (useful for splitting merged questions)" />
+                                                        {idx > 0 && <IonIcon icon={linkOutline} style={{ cursor: 'pointer', color: '#f59e0b', fontSize: '1rem', marginTop: '4px' }} onClick={() => mergeWithPrevious(idx)} title="Merge with previous question" />}
+                                                        <IonIcon icon={trashOutline} style={{ cursor: 'pointer', color: '#ef4444', fontSize: '1rem', marginTop: '4px' }} onClick={() => deleteOcrQuestion(idx)} title="Remove this question" />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {ocrResults.length === 0 && (
+                                        <p style={{ textAlign: 'center', color: '#94a3b8', padding: '2rem 0' }}>No questions remaining. Go back and reselect pages.</p>
+                                    )}
+                                </>
+                            )}
+                        </div>
+
+                        {/* ── Footer ─── */}
+                        <div className="qa-modal-footer">
+                            {pdfReviewStep === 'pages' ? (
+                                <>
+                                    <button className='qa-btn qa-btn-secondary' onClick={() => { setShowPdfVerification(false); }}>Close</button>
+                                    <button className='qa-btn qa-btn-primary' onClick={handleProceedPdf} disabled={isExtracting || !selectedPdfPages.some(Boolean)}>
+                                        {isExtracting ? <><Loader size={16} /> Processing…</> : 'Proceed Next →'}
+                                    </button>
+                                </>
+                            ) : (
+                                <>
+                                    <button className='qa-btn qa-btn-secondary' onClick={() => setPdfReviewStep('pages')}>← Back to Pages</button>
+                                    <button className='qa-btn qa-btn-primary' onClick={handleConfirmQuestions} disabled={ocrResults.length === 0}>
+                                        Confirm {ocrResults.length} Question{ocrResults.length !== 1 ? 's' : ''}
+                                    </button>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* ── Answer Picker Modal ───────────────────────────────────── */}
             {showAnswerPicker && (
                 <div className="qa-modal-overlay" onClick={() => setShowAnswerPicker(false)}>
@@ -532,6 +1013,18 @@ const QuestionsAndAnswers = () => {
                                 Skip — I'll type manually
                             </button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Emoji Picker Modal ───────────────────────────────────── */}
+            {showEmojiPicker && (
+                <div className="qa-modal-overlay" onClick={() => setShowEmojiPicker(false)}>
+                    <div onClick={e => e.stopPropagation()} style={{ background: 'white', borderRadius: '10px', padding: '10px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '10px' }}>
+                            <IonIcon icon={close} style={{ cursor: 'pointer', fontSize: '1.5rem' }} onClick={() => setShowEmojiPicker(false)} />
+                        </div>
+                        <EmojiPicker onEmojiClick={handleEmojiClick} />
                     </div>
                 </div>
             )}
@@ -609,9 +1102,7 @@ const QuestionsAndAnswers = () => {
                                             </div>
                                             <div className="qa-form-group">
                                                 <label className="qa-label">Subject</label>
-                                                <select className="qa-select" value={subject} onChange={(e) => setSubject(e.target.value)}>
-                                                    {Details.SUBJECT.map((obj, index) => <option key={index} value={obj}>{obj}</option>)}
-                                                </select>
+                                                <input className="qa-input" value={subject} onChange={(e) => setSubject(e.target.value)} list="subjects-list" placeholder="Select or enter subject" required />
                                             </div>
                                         </div>
 
@@ -707,9 +1198,22 @@ const QuestionsAndAnswers = () => {
                                     )}
                                 </div>
 
-                                {/* Show Extracted Questions Unhide Button */}
-                                {!showSuggestions && extractedQuestions.length > 0 && (
-                                    <div style={{ marginTop: '0.5rem', display: 'flex', justifyContent: 'flex-end' }}>
+                                {/* Show Extracted Questions Unhide Button & Resume PDF Review */}
+                                <div style={{ marginTop: '0.5rem', display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                    {pdfPages.length > 0 && !showPdfVerification && (
+                                        <button 
+                                            type="button"
+                                            className="qa-btn qa-btn-secondary" 
+                                            style={{ fontSize: '0.8rem', padding: '0.3rem 0.6rem', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                            onClick={() => setShowPdfVerification(true)}
+                                            title="Reopen the PDF extraction popup"
+                                        >
+                                            <IonIcon icon={imageOutline} />
+                                            Resume PDF Extraction
+                                        </button>
+                                    )}
+
+                                    {!showSuggestions && extractedQuestions.length > 0 && (
                                         <button 
                                             type="button"
                                             className="qa-btn" 
@@ -719,8 +1223,8 @@ const QuestionsAndAnswers = () => {
                                             <IonIcon icon={imageOutline} />
                                             Show {extractedQuestions.length} Extracted Questions
                                         </button>
-                                    </div>
-                                )}
+                                    )}
+                                </div>
 
                                 {/* OCR error */}
                                 {ocrError && (
@@ -748,24 +1252,38 @@ const QuestionsAndAnswers = () => {
                                             </button>
                                         </div>
                                         {extractedQuestions.map((item, idx) => (
-                                            <button
-                                                key={idx}
-                                                className="qa-suggestion-item"
-                                                onClick={() => handleSuggestionClick(item, idx)}
-                                                title={item.question}
-                                            >
-                                                <span className="qa-suggestion-num">{idx + 1}</span>
-                                                <span className="qa-suggestion-text">
-                                                    {item.question.length > 90
-                                                        ? item.question.slice(0, 90) + '…'
-                                                        : item.question}
-                                                </span>
-                                                {item.options.length > 0 && (
-                                                    <span className="qa-suggestion-opts-badge">
-                                                        {item.options.length} opts
+                                            <div key={idx} className="qa-suggestion-row">
+                                                <button
+                                                    type="button"
+                                                    className="qa-suggestion-item"
+                                                    style={{ flex: 1, margin: 0 }}
+                                                    onClick={() => handleSuggestionClick(item, idx)}
+                                                    title={item.question}
+                                                >
+                                                    <span className="qa-suggestion-num">{idx + 1}</span>
+                                                    <span className="qa-suggestion-text">
+                                                        {item.question.length > 90
+                                                            ? item.question.slice(0, 90) + '…'
+                                                            : item.question}
                                                     </span>
-                                                )}
-                                            </button>
+                                                    {item.options.length > 0 && (
+                                                        <span className="qa-suggestion-opts-badge">
+                                                            {item.options.length} opts
+                                                        </span>
+                                                    )}
+                                                </button>
+                                                <button 
+                                                    type="button"
+                                                    className="qa-suggestion-delete-btn"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setExtractedQuestions(prev => prev.filter((_, i) => i !== idx));
+                                                    }}
+                                                    title="Delete this extracted question"
+                                                >
+                                                    <IonIcon icon={trashOutline} style={{ fontSize: '1.2rem' }} />
+                                                </button>
+                                            </div>
                                         ))}
                                     </div>
                                 )}
@@ -818,7 +1336,7 @@ const QuestionsAndAnswers = () => {
                             </div>
 
                             <div className="qa-form-group">
-                                <label className="qa-label">Options</label>
+                                <label className="qa-label">Wrong Options</label>
                                 <div className="qa-options-grid">
                                     {options.map((opt, idx) => (
                                         <VoiceInputWrapper key={idx} value={opt} onTextUpdate={(val) => handleOptionChange(idx, val)} lang={voiceLang}>
@@ -827,7 +1345,7 @@ const QuestionsAndAnswers = () => {
                                                 onChangeText={(val) => handleOptionChange(idx, val)}
                                                 lang="ml"
                                                 enabled={voiceLang === 'ml-IN'}
-                                                renderComponent={(props) => <input {...props} className="qa-input" placeholder={`Option ${idx + 1}`} required />}
+                                                renderComponent={(props) => <input {...props} className="qa-input" placeholder={`Wrong Option ${idx + 1}`} required />}
                                             />
                                         </VoiceInputWrapper>
                                     ))}
@@ -835,7 +1353,28 @@ const QuestionsAndAnswers = () => {
                             </div>
 
                             <div className="qa-form-group">
-                                <label className="qa-label">Review / Notes</label>
+                                <label className="qa-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    Review / Notes
+                                    <IonIcon 
+                                        icon={happyOutline} 
+                                        style={{ cursor: 'pointer', color: '#10b981', fontSize: '1.2rem' }} 
+                                        onClick={() => { setActiveEmojiField('review'); setShowEmojiPicker(true); }}
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        title="Add Emoji"
+                                    />
+                                    <span 
+                                        style={{ cursor: 'pointer', fontSize: '1.2rem' }} 
+                                        onClick={() => setReview(prev => (prev || '') + '✅')}
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        title="Quick Add ✅"
+                                    >✅</span>
+                                    <span 
+                                        style={{ cursor: 'pointer', fontSize: '1.2rem' }} 
+                                        onClick={() => setReview(prev => (prev || '') + '❌')}
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        title="Quick Add ❌"
+                                    >❌</span>
+                                </label>
                                 <VoiceInputWrapper value={review} onTextUpdate={setReview} lang={voiceLang} className="voice-input-wrapper-textarea">
                                     <ReactTransliterate
                                         value={review}
@@ -920,6 +1459,9 @@ const QuestionsAndAnswers = () => {
                             </div>
 
                             {/* Datalists for Auto-suggestions */}
+                            <datalist id="subjects-list">
+                                {uniqueSubjects.map((s, idx) => <option key={`s-${idx}`} value={s} />)}
+                            </datalist>
                             <datalist id="topics-list">
                                 {uniqueTopics.map((t, idx) => <option key={`t-${idx}`} value={t} />)}
                             </datalist>
@@ -936,42 +1478,138 @@ const QuestionsAndAnswers = () => {
                 {/* Resizer Handle */}
                 <div className="qa-resizer" onMouseDown={handleMouseDown}></div>
 
-                {/* Right Side: List */}
-                <div className="qa-list-section">
-                    <div className="qa-list-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                        <h3>All Questions</h3>
-                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                            <select 
-                                className="qa-select" 
-                                value={filterSubject} 
-                                onChange={(e) => setFilterSubject(e.target.value)}
-                                style={{ padding: '0.5rem', fontSize: '0.85rem', width: '150px' }}
-                            >
-                                <option value="">All Subjects</option>
-                                {Details.SUBJECT.map((obj, index) => <option key={index} value={obj}>{obj}</option>)}
-                            </select>
-                            <VoiceInputWrapper value={searchQuery} onTextUpdate={setSearchQuery} lang={voiceLang}>
-                                <ReactTransliterate
-                                    value={searchQuery}
-                                    onChangeText={setSearchQuery}
-                                    lang="ml"
-                                    enabled={voiceLang === 'ml-IN'}
-                                    renderComponent={(props) => (
-                                        <input 
-                                            {...props} 
-                                            type="text" 
-                                            className="qa-input" 
-                                            placeholder="Search questions..." 
-                                            style={{ width: '200px', padding: '0.5rem 1rem', fontSize: '0.85rem' }}
+                {/* Right Side: List or PDF Viewer */}
+                <div className="qa-list-section" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                    {rightPanelMode === 'list' ? (
+                        <>
+                            <div className="qa-list-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                    <h3>All Questions</h3>
+                                    <button className="qa-btn qa-btn-secondary" style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px' }} onClick={() => setRightPanelMode('pdf')} title="Open a side-by-side PDF Viewer">
+                                        <IonIcon icon={imageOutline} /> View PDF
+                                    </button>
+                                </div>
+                                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                    <select 
+                                        className="qa-select" 
+                                        value={filterSubject} 
+                                        onChange={(e) => setFilterSubject(e.target.value)}
+                                        style={{ padding: '0.5rem', fontSize: '0.85rem', width: '150px' }}
+                                    >
+                                        <option value="">All Subjects</option>
+                                        {Details.SUBJECT.map((obj, index) => <option key={index} value={obj}>{obj}</option>)}
+                                    </select>
+                                    <VoiceInputWrapper value={searchQuery} onTextUpdate={setSearchQuery} lang={voiceLang}>
+                                        <ReactTransliterate
+                                            value={searchQuery}
+                                            onChangeText={setSearchQuery}
+                                            lang="ml"
+                                            enabled={voiceLang === 'ml-IN'}
+                                            renderComponent={(props) => (
+                                                <input 
+                                                    {...props} 
+                                                    type="text" 
+                                                    className="qa-input" 
+                                                    placeholder="Search questions..." 
+                                                    style={{ width: '200px', padding: '0.5rem 1rem', fontSize: '0.85rem' }}
+                                                />
+                                            )}
                                         />
+                                    </VoiceInputWrapper>
+                                </div>
+                            </div>
+                            <QuestionsDisplayList data={data} isLoading={isLoading} isError={isError} error={error} searchQuery={searchQuery} filterSubject={filterSubject} onEdit={editProduct} onDelete={onHandleDelete} />
+                        </>
+                    ) : (
+                        <div ref={rightPanelRef} style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+                            {/* Top Viewer */}
+                            <div style={{ height: showSecondViewer ? `${topHeight}%` : '100%', display: 'flex', flexDirection: 'column', transition: isVerticalDragging ? 'none' : 'height 0.2s ease' }}>
+                                <div className="qa-list-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                        <h3>PDF Viewer</h3>
+                                        <button className="qa-btn qa-btn-secondary" style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }} onClick={() => setRightPanelMode('list')}>
+                                            ← Back to List
+                                        </button>
+                                        {!showSecondViewer && (
+                                            <button className="qa-btn qa-btn-secondary" style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px' }} onClick={() => setShowSecondViewer(true)}>
+                                                <IonIcon icon={addOutline} /> Add Viewer Below
+                                            </button>
+                                        )}
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                        <input 
+                                            type="file" 
+                                            accept="application/pdf"
+                                            onChange={(e) => {
+                                                const file = e.target.files[0];
+                                                if (file) {
+                                                    if (sidePdfUrl) URL.revokeObjectURL(sidePdfUrl);
+                                                    setSidePdfUrl(URL.createObjectURL(file));
+                                                }
+                                            }}
+                                            style={{ fontSize: '0.8rem', maxWidth: '250px' }}
+                                        />
+                                    </div>
+                                </div>
+                                <div style={{ flex: 1, border: '1px solid #cbd5e1', borderRadius: '8px', overflow: 'hidden', backgroundColor: '#f1f5f9', display: 'flex', flexDirection: 'column', pointerEvents: isDragging || isVerticalDragging ? 'none' : 'auto' }}>
+                                    {sidePdfUrl ? (
+                                        <iframe src={sidePdfUrl} width="100%" height="100%" style={{ border: 'none', flex: 1 }} title="PDF Viewer" />
+                                    ) : (
+                                        <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', color: '#64748b', textAlign: 'center', padding: '2rem' }}>
+                                            <p>Select a PDF file using the button above to view it.</p>
+                                        </div>
                                     )}
-                                />
-                            </VoiceInputWrapper>
+                                </div>
+                            </div>
+
+                            {/* Resizer & Bottom Viewer */}
+                            {showSecondViewer && (
+                                <>
+                                    <div 
+                                        className="qa-horizontal-resizer" 
+                                        onMouseDown={handleVerticalMouseDown}
+                                        style={{ height: '12px', cursor: 'row-resize', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '4px 0', borderRadius: '4px' }}
+                                    >
+                                        <div style={{ width: '40px', height: '4px', background: '#cbd5e1', borderRadius: '2px' }}></div>
+                                    </div>
+                                    
+                                    <div style={{ height: `${100 - topHeight}%`, display: 'flex', flexDirection: 'column', transition: isVerticalDragging ? 'none' : 'height 0.2s ease' }}>
+                                        <div className="qa-list-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', paddingBottom: '0.25rem', paddingTop: 0 }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                                <h3 style={{ fontSize: '0.9rem' }}>Second Viewer</h3>
+                                                <button className="qa-btn qa-btn-secondary" style={{ padding: '0.1rem 0.4rem', fontSize: '0.7rem', color: '#ef4444' }} onClick={() => setShowSecondViewer(false)}>
+                                                    Close Viewer
+                                                </button>
+                                            </div>
+                                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                                <input 
+                                                    type="file" 
+                                                    accept="application/pdf"
+                                                    onChange={(e) => {
+                                                        const file = e.target.files[0];
+                                                        if (file) {
+                                                            if (bottomPdfUrl) URL.revokeObjectURL(bottomPdfUrl);
+                                                            setBottomPdfUrl(URL.createObjectURL(file));
+                                                        }
+                                                    }}
+                                                    style={{ fontSize: '0.75rem', maxWidth: '250px' }}
+                                                />
+                                            </div>
+                                        </div>
+                                        <div style={{ flex: 1, border: '1px solid #cbd5e1', borderRadius: '8px', overflow: 'hidden', backgroundColor: '#f1f5f9', display: 'flex', flexDirection: 'column', pointerEvents: isDragging || isVerticalDragging ? 'none' : 'auto' }}>
+                                            {bottomPdfUrl ? (
+                                                <iframe src={bottomPdfUrl} width="100%" height="100%" style={{ border: 'none', flex: 1 }} title="Second PDF Viewer" />
+                                            ) : (
+                                                <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', color: '#64748b', textAlign: 'center', padding: '1rem', fontSize: '0.85rem' }}>
+                                                    <p>Select another PDF file here.</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </>
+                            )}
                         </div>
-                    </div>
-                    <QuestionsDisplayList data={data} isLoading={isLoading} isError={isError} error={error} searchQuery={searchQuery} filterSubject={filterSubject} onEdit={editProduct} onDelete={onHandleDelete} />
-                    {/* Fallback to old list if needed, or keeping it for reference, but replacing with inner component for better layout control */}
-                    {/* <QuestionsList onEdit={editProduct} onDelete={onHandleDelete} /> */}
+                    )}
                 </div>
             </div>
         </div>

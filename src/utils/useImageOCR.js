@@ -78,8 +78,12 @@ async function pdfToCanvases(file) {
 
 // ─── Advanced option parser ───────────────────────────────────────────────────
 
+/**
+ * Fallback parser for extracting a single question and its options from a 
+ * flat text string (e.g. when everything is inline on one line).
+ */
 function extractQuestionAndOptions(rawText) {
-    if (!rawText?.trim()) return [];
+    if (!rawText?.trim()) return null;
 
     let text = rawText
         .replace(/\r\n?/g, ' ')
@@ -88,31 +92,22 @@ function extractQuestionAndOptions(rawText) {
         .replace(/\s{2,}/g, ' ')
         .trim();
 
-    // 1. First, try the user's explicit strict rule: (A), (B), (C), (D) or (a), (b), (c), (d)
     let markerRegex = /\([A-Da-d]\)/g;
     let matches = [...text.matchAll(markerRegex)];
 
-    // 2. If we didn't find exactly 4, maybe they used A), B), C), D) or 1), 2), 3), 4) or (1), (2)
     if (matches.length < 4) {
         markerRegex = /(?:\s|^)(?:[A-Da-d]\)|[1-4]\)|\([1-4]\)|\[[A-Da-d]\])(?=\s|$)/g;
         const altMatches = [...text.matchAll(markerRegex)];
-        if (altMatches.length >= 4) {
-            matches = altMatches;
-        }
+        if (altMatches.length >= 4) matches = altMatches;
     }
     
-    // 3. What if it's A., B., C., D.?
     if (matches.length < 4) {
         markerRegex = /(?:\s|^)(?:[A-Da-d]\.|[1-4]\.)(?=\s|$)/g;
         const altMatches = [...text.matchAll(markerRegex)];
-        if (altMatches.length >= 4) {
-            matches = altMatches;
-        }
+        if (altMatches.length >= 4) matches = altMatches;
     }
 
-    // 4. If we found at least 4 markers, extract perfectly based on their positions
     if (matches.length >= 4) {
-        // If there are more than 4, take the last 4 (often questions have list items inside them, but options are at the end)
         const optsMatches = matches.slice(-4);
         
         let qText = text.substring(0, optsMatches[0].index).trim();
@@ -121,54 +116,122 @@ function extractQuestionAndOptions(rawText) {
         let opt3 = text.substring(optsMatches[2].index + optsMatches[2][0].length, optsMatches[3].index).trim();
         let opt4 = text.substring(optsMatches[3].index + optsMatches[3][0].length).trim();
         
-        qText = qText.replace(/^(?:Q(?:uestion)?\s*\.?\s*)?(\d{1,3})[.):\s]\s*/i, '');
-        return [{ question: qText, options: [opt1, opt2, opt3, opt4] }];
+        qText = qText.replace(/^(?:Q(?:uestion)?\s*\.?\s*)?\d{1,3}[.):\s]\s*/i, '');
+        return { question: qText, options: [opt1, opt2, opt3, opt4] };
     }
 
-    // FALLBACK: User's requested logic - split the sentence before the "(" symbol.
-    // This rescues heavily mangled OCR where (A)(B)(C)(D) became (10), (9), (8).
-    // We use a positive lookahead `(?=\()` so the parenthesis is preserved in the chunks.
+    // Split by parens if no strict markers found
     const parenChunks = text.split(/(?=\()/).map(s => s.trim()).filter(Boolean);
-    
     if (parenChunks.length > 1) {
         let qText = '';
         let opts = [];
         
         if (parenChunks.length > 4) {
-            // If there are more than 4 chunks, assume the last 4 are the options
             qText = parenChunks.slice(0, -4).join(' ');
-            qText = qText.replace(/^(?:Q(?:uestion)?\s*\.?\s*)?(\d{1,3})[.):\s]\s*/i, '');
+            qText = qText.replace(/^(?:Q(?:uestion)?\s*\.?\s*)?\d{1,3}[.):\s]\s*/i, '');
             opts = parenChunks.slice(-4);
-        } else if (parenChunks.length === 4) {
-            // Exactly 4 chunks - assume they are all options
-            opts = parenChunks;
         } else {
-            // Less than 4 chunks - could be a missing question or missing markers.
-            // We just pad the rest with empty strings.
             opts = parenChunks;
         }
         
-        while (opts.length < 4) opts.push(''); // Pad up to 4 options
-        
-        return [{
-            question: qText,
-            options: opts
-        }];
+        while (opts.length < 4) opts.push('');
+        return { question: qText, options: opts };
     }
 
-    // Ultimate fallback if no parentheses at all
-    return [{
-        question: text,
+    return {
+        question: text.replace(/^(?:Q(?:uestion)?\s*\.?\s*)?\d{1,3}[.):\s]\s*/i, ''),
         options: ['', '', '', '']
-    }];
+    };
 }
 
+/**
+ * Robust line-based multi-question parser.
+ * Reads line by line, grouping text into Question and Option blocks based on prefixes.
+ */
 function parseQuestionsFromText(rawText) {
     if (!rawText?.trim()) return [];
-    
-    // If multiple questions are in the same image, we can try to split them by "1.", "2.", etc.
-    // For now, since it's usually screenshots of a single question, just extract the best sequence.
-    return extractQuestionAndOptions(rawText);
+
+    const lines = rawText.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    const questions = [];
+    let currentQ = null;
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+
+        // Match question numbers: "1. ", "1) ", "Q1. "
+        const qMatch = /^(?:Q(?:uestion)?\s*\.?\s*)?(\d{1,3})\s*([.):])\s*(.+)/i.exec(line);
+        
+        // Match letter options: "A. ", "A) ", "(A) "
+        const optMatch = /^(?:\([A-Da-d]\)|\[[A-Da-d]\]|[A-Da-d][.)])\s+(.+)/.exec(line);
+
+        if (optMatch) {
+            // It's definitely a letter option
+            if (currentQ) {
+                currentQ.options.push(optMatch[1]);
+            } else {
+                currentQ = { text: line, options: [] }; // Orphan option
+            }
+        } else if (qMatch) {
+            const num = parseInt(qMatch[1], 10);
+            const delimiter = qMatch[2];
+            
+            // Check if this is actually a numeric option (1) 2) 3) 4)) belonging to the current question
+            const isNumericOption = currentQ && 
+                                    currentQ.options.length < 4 && 
+                                    num >= 1 && num <= 4 && 
+                                    delimiter === ')';
+
+            if (isNumericOption) {
+                currentQ.options.push(qMatch[3]);
+            } else {
+                // It's a new question boundary
+                if (currentQ) questions.push(currentQ);
+                currentQ = {
+                    text: qMatch[3], // Extracted text without the number prefix
+                    options: []
+                };
+            }
+        } else {
+            // Continuation line — append to the last active element
+            if (currentQ) {
+                if (currentQ.options.length > 0) {
+                    currentQ.options[currentQ.options.length - 1] += ' ' + line;
+                } else {
+                    currentQ.text += ' ' + line;
+                }
+            } else {
+                currentQ = { text: line, options: [] };
+            }
+        }
+    }
+
+    if (currentQ) questions.push(currentQ);
+
+    // Format output and apply inline fallback for questions that had no options on separate lines
+    const result = questions.map(q => {
+        if (q.options.length === 0) {
+            const fallback = extractQuestionAndOptions(q.text);
+            if (fallback && fallback.options.some(o => o)) {
+                return fallback;
+            }
+        }
+        
+        const opts = [...q.options];
+        while (opts.length < 4) opts.push('');
+        
+        return {
+            question: q.text,
+            options: opts.slice(0, 4)
+        };
+    });
+
+    // If we couldn't split anything and it looks like a single chunk, try a full fallback
+    if (result.length === 0) {
+        const fallback = extractQuestionAndOptions(rawText);
+        return fallback ? [fallback] : [];
+    }
+
+    return result.filter(q => q.question.trim());
 }
 
 // ─── Main hook ─────────────────────────────────────────────────────────────────
@@ -177,6 +240,66 @@ export function useImageOCR() {
     const [ocrProgress, setOcrProgress] = useState(0);
     const [ocrError, setOcrError] = useState(null);
 
+    const extractCanvasesFromPDF = useCallback(async (file) => {
+        setIsExtracting(true);
+        setOcrProgress(5);
+        setOcrError(null);
+        try {
+            const canvases = await pdfToCanvases(file);
+            // Convert to dataURLs so they can be easily rendered and passed to Tesseract
+            const dataUrls = canvases.map(c => c.toDataURL('image/jpeg', 0.8));
+            return dataUrls;
+        } catch (err) {
+            console.error('[useImageOCR] PDF extraction error:', err);
+            setOcrError(err?.message || 'Failed to extract PDF pages.');
+            return [];
+        } finally {
+            setIsExtracting(false);
+            setOcrProgress(0);
+        }
+    }, []);
+
+    const runOCR = useCallback(async (sources) => {
+        setIsExtracting(true);
+        setOcrProgress(10);
+        setOcrError(null);
+        try {
+            const Tesseract = await loadTesseract();
+            const allQuestions = [];
+
+            for (let i = 0; i < sources.length; i++) {
+                const pStart = 20 + (i / sources.length) * 70;
+                const pEnd = 20 + ((i + 1) / sources.length) * 70;
+
+                const { data } = await Tesseract.recognize(sources[i], 'eng+mal', {
+                    tessedit_pageseg_mode: '3',
+                    preserve_interword_spaces: '1',
+                    logger: m => {
+                        if (m.status === 'recognizing text') {
+                            setOcrProgress(Math.round(pStart + m.progress * (pEnd - pStart)));
+                        } else if (m.status === 'loading language traineddata') {
+                            setOcrProgress(Math.round(5 + m.progress * 15));
+                        }
+                    },
+                });
+
+                // Parse questions from THIS page's text independently
+                const pageQuestions = parseQuestionsFromText(data.text);
+                allQuestions.push(...pageQuestions);
+            }
+
+            setOcrProgress(95);
+            setOcrProgress(100);
+            return allQuestions;
+        } catch (err) {
+            console.error('[useImageOCR] Error:', err);
+            setOcrError(err?.message || 'OCR failed — try a higher-resolution image.');
+            return [];
+        } finally {
+            setIsExtracting(false);
+        }
+    }, []);
+
     const extractFromFile = useCallback(async (file) => {
         setIsExtracting(true);
         setOcrProgress(0);
@@ -184,8 +307,6 @@ export function useImageOCR() {
 
         try {
             setOcrProgress(5);
-            const Tesseract = await loadTesseract();
-            
             const isPDF = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
             let sources;
 
@@ -197,13 +318,14 @@ export function useImageOCR() {
                 sources = [await preprocessImage(file)];
             }
 
+            const Tesseract = await loadTesseract();
             let allText = '';
             for (let i = 0; i < sources.length; i++) {
                 const pStart = 20 + (i / sources.length) * 70;
                 const pEnd = 20 + ((i + 1) / sources.length) * 70;
 
                 const { data } = await Tesseract.recognize(sources[i], 'eng+mal', {
-                    tessedit_pageseg_mode: '3', // PSM 3: Default, fully automatic page segmentation (best for general text)
+                    tessedit_pageseg_mode: '3',
                     preserve_interword_spaces: '1',
                     logger: m => {
                         if (m.status === 'recognizing text') {
@@ -230,5 +352,5 @@ export function useImageOCR() {
         }
     }, []);
 
-    return { extractFromFile, isExtracting, ocrProgress, ocrError };
+    return { extractFromFile, extractCanvasesFromPDF, runOCR, isExtracting, ocrProgress, ocrError };
 }

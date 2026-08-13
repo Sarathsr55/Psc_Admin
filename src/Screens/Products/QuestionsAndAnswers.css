@@ -893,7 +893,8 @@ details[open]>.qa-related-note-summary::before {
     border-radius: 10px;
     background: #ffffff;
     box-shadow: 0 8px 24px rgba(99, 102, 241, 0.12);
-    overflow: hidden;
+    overflow-y: auto;
+    max-height: 500px;
     animation: qa-slide-in 0.2s ease-out;
 }
 
@@ -955,7 +956,8 @@ details[open]>.qa-related-note-summary::before {
     display: flex;
     align-items: center;
     gap: 0.6rem;
-    width: 100%;
+    flex: 1;
+    min-width: 0;
     padding: 0.65rem 0.9rem;
     background: transparent;
     border: none;
@@ -995,6 +997,33 @@ details[open]>.qa-related-note-summary::before {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+.qa-suggestion-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.qa-suggestion-delete-btn {
+    background: #fee2e2;
+    color: #ef4444;
+    border: none;
+    padding: 0.6rem;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+}
+
+.qa-suggestion-row:hover .qa-suggestion-delete-btn {
+    opacity: 1;
+    visibility: visible;
 }
 
 .qa-suggestion-opts-badge {

@@ -39,6 +39,10 @@ body {
   color: var(--dash-text-dark);
 }
 
+input, textarea {
+  caret-color: black;
+}
+
 a {
   font-weight: 500;
   color: var(--dash-blue);

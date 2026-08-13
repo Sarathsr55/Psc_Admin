@@ -120,6 +120,11 @@ const Notes = () => {
         return Array.from(new Set(data.map(q => q.topic).filter(Boolean)));
     }, [data]);
 
+    const uniqueSubjects = React.useMemo(() => {
+        if (!data) return Details.SUBJECT;
+        return Array.from(new Set([...Details.SUBJECT, ...data.map(q => q.subject).filter(Boolean)]));
+    }, [data]);
+
     const uniqueSubTopics = React.useMemo(() => {
         if (!data) return [];
         return Array.from(new Set(data.map(q => q.subtopic).filter(Boolean)));
@@ -375,11 +380,7 @@ const Notes = () => {
                                     </div>
                                     <div className="notes-form-group" style={{ marginBottom: 0 }}>
                                         <label className="notes-label" style={{ fontSize: '0.8rem', color: 'var(--notes-text-muted)' }}>Subject</label>
-                                        <select className="notes-select" value={subject} onChange={(e) => setSubject(e.target.value)}>
-                                            {Details.SUBJECT.map((obj, index) => (
-                                                <option key={index} value={obj}>{obj}</option>
-                                            ))}
-                                        </select>
+                                        <input className="notes-input" value={subject} onChange={(e) => setSubject(e.target.value)} list="notes-subjects-list" placeholder="Select or enter subject" required />
                                     </div>
                                     <div className="notes-form-group" style={{ marginBottom: 0 }}>
                                         <label className="notes-label" style={{ fontSize: '0.8rem', color: 'var(--notes-text-muted)' }}>Post Details</label>
@@ -552,7 +553,21 @@ const Notes = () => {
                         </div>
 
                         <div className="notes-section-divider">
-                            <label className="notes-label">Key Points</label>
+                            <label className="notes-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                Key Points
+                                <span 
+                                    style={{ cursor: 'pointer', fontSize: '1.2rem' }} 
+                                    onClick={() => setKeyPoints(prev => (prev || '') + '✅')}
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    title="Quick Add ✅"
+                                >✅</span>
+                                <span 
+                                    style={{ cursor: 'pointer', fontSize: '1.2rem' }} 
+                                    onClick={() => setKeyPoints(prev => (prev || '') + '❌')}
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    title="Quick Add ❌"
+                                >❌</span>
+                            </label>
                             <div className="notes-dynamic-field">
                                 <VoiceInputWrapper value={keyPoints} onTextUpdate={setKeyPoints} className="notes-dynamic-voice" lang={voiceLang}>
                                     <ReactTransliterate
@@ -623,6 +638,9 @@ const Notes = () => {
                         </button>
 
                         {/* Datalists for Auto-suggestions */}
+                        <datalist id="notes-subjects-list">
+                            {uniqueSubjects.map((s, idx) => <option key={`s-${idx}`} value={s} />)}
+                        </datalist>
                         <datalist id="notes-topics-list">
                             {uniqueTopics.map((t, idx) => <option key={`t-${idx}`} value={t} />)}
                         </datalist>
