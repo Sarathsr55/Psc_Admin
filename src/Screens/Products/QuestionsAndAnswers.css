@@ -1097,3 +1097,28 @@ details[open]>.qa-related-note-summary::before {
     line-height: 1.4;
     flex: 1;
 }
+
+.qa-live-preview {
+    background-color: #f8fafc;
+    border: 1px dashed #cbd5e1;
+    border-radius: 8px;
+    padding: 12px;
+    margin-top: 8px;
+    font-size: 0.9rem;
+    color: #334155;
+    position: relative;
+}
+
+.qa-live-preview-label {
+    display: block;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #94a3b8;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.qa-live-preview-content {
+    line-height: 1.5;
+}

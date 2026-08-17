@@ -14,6 +14,24 @@ import QuestionsList from './QuestionsList'
 import { Loader } from '../../Components/Loader/Loader'
 import { useImageOCR } from '../../utils/useImageOCR'
 import EmojiPicker from 'emoji-picker-react'
+import DOMPurify from 'dompurify'
+
+const LivePreview = ({ text, label }) => {
+    if (!text) return null;
+    const hasHTML = /<[a-z][\s\S]*>/i.test(text);
+    if (!hasHTML) return null;
+
+    return (
+        <div className="qa-live-preview">
+            <span className="qa-live-preview-label">{label} Preview:</span>
+            <div 
+                className="qa-live-preview-content"
+                style={{ whiteSpace: 'pre-wrap' }}
+                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(text, { ALLOWED_TAGS: ['u', 'b', 'i', 'strong', 'em'] }) }} 
+            />
+        </div>
+    );
+};
 
 const QuestionsDisplayList = ({ data, isLoading, isError, error, searchQuery, filterSubject, onEdit, onDelete }) => {
     if (isLoading) return <div className="qa-loading"><Loader size={100} /></div>
@@ -83,6 +101,7 @@ const QuestionsAndAnswers = () => {
     const [isDeletePopup, setIsDeletePopup] = useState(false)
     const [isDeleting, setIsDeleting] = useState(false)
     const [editId, setEditId] = useState('')
+    const [questionCode, setQuestionCode] = useState('')
     const [topic, setTopic] = useState('')
     const [subTopic, setSubTopic] = useState('')
     const [isPreviousYear, setIsPreviousYear] = useState(false)
@@ -288,6 +307,9 @@ const QuestionsAndAnswers = () => {
             
             // Only include items that actually have a review/note
             if (!item.review || !item.review.trim()) return acc;
+            
+            // Only include items from the same subject
+            if (item.subject !== subject) return acc;
 
             const reviewText = (item.review || '').toLowerCase();
             
@@ -313,7 +335,7 @@ const QuestionsAndAnswers = () => {
             
             return acc;
         }, []);
-    }, [data, tags, editId]);
+    }, [data, tags, editId, subject]);
 
     const handleOptionChange = (index, value) => {
         const updated = [...options];
@@ -674,7 +696,8 @@ const QuestionsAndAnswers = () => {
             topic,
             subTopic,
             isPreviousYear,
-            tags
+            tags,
+            questionCode
         }
         const result = await addQuestion(token, qaObject)
         if (result?.status === 200) {
@@ -711,7 +734,8 @@ const QuestionsAndAnswers = () => {
             topic,
             subTopic,
             isPreviousYear,
-            tags
+            tags,
+            questionCode
         }
         const result = await updateQuestion(qaObject)
 
@@ -768,6 +792,7 @@ const QuestionsAndAnswers = () => {
             setReview(obj?.review || '')
             setIsPreviousYear(obj?.isPreviousYear || false)
             setTags(obj?.tags || [])
+            setQuestionCode(obj?.questionCode || '')
             setCustomTags([])
             setHiddenOriginalTags([])
             setShowRelatedNotes(false)
@@ -779,7 +804,7 @@ const QuestionsAndAnswers = () => {
             {/* ── PDF Verification Modal (2-step: pages → question list) ─── */}
             {showPdfVerification && (
                 <div className="qa-modal-overlay" onClick={() => { if (!isExtracting) setShowPdfVerification(false); }}>
-                    <div className="qa-modal" style={{ maxWidth: pdfReviewStep === 'list' ? '900px' : '800px', width: '92%', transition: 'max-width 0.3s ease' }} onClick={e => e.stopPropagation()}>
+                    <div className="qa-modal" style={{ maxWidth: '98vw', width: '98vw', height: '96vh', display: 'flex', flexDirection: 'column', transition: 'all 0.3s ease' }} onClick={e => e.stopPropagation()}>
                         {/* ── Header ─── */}
                         <div className="qa-modal-header">
                             <h4 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -800,7 +825,11 @@ const QuestionsAndAnswers = () => {
                         </div>
 
                         {/* ── Body ─── */}
-                        <div className="qa-modal-body" style={{ maxHeight: '65vh', overflowY: 'auto' }}>
+                        <div className="qa-modal-body" style={{ flex: 1, maxHeight: 'none', overflowY: 'auto' }}>
+                            <div style={{ marginBottom: '1rem' }}>
+                                <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#334155' }}>Apply Question Code for this Extraction:</label>
+                                <input type="text" value={questionCode} onChange={(e) => setQuestionCode(e.target.value)} style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.85rem', marginTop: '0.25rem' }} placeholder="e.g. PSC-2023-A (will be added to the database)" />
+                            </div>
 
                             {/* Step 1: Page selection */}
                             {pdfReviewStep === 'pages' && (
@@ -891,12 +920,12 @@ const QuestionsAndAnswers = () => {
                                                             <textarea
                                                                 value={inlineEditData?.question || ''}
                                                                 onChange={(e) => setInlineEditData({ ...inlineEditData, question: e.target.value })}
-                                                                style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.85rem', fontFamily: 'inherit', resize: 'vertical', minHeight: '60px' }}
+                                                                style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '1.1rem', fontFamily: 'inherit', resize: 'vertical', minHeight: '60px' }}
                                                             />
                                                             <div style={{ display: 'grid', gap: '0.25rem' }}>
                                                                 {inlineEditData?.options?.map((opt, oIdx) => (
                                                                     <div key={oIdx} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                                        <span style={{ fontWeight: 700, color: '#94a3b8', fontSize: '0.8rem', width: '15px' }}>{String.fromCharCode(65 + oIdx)}.</span>
+                                                                        <span style={{ fontWeight: 700, color: '#94a3b8', fontSize: '1.1rem', width: '18px' }}>{String.fromCharCode(65 + oIdx)}.</span>
                                                                         <input
                                                                             type="text"
                                                                             value={opt || ''}
@@ -905,7 +934,7 @@ const QuestionsAndAnswers = () => {
                                                                                 newOpts[oIdx] = e.target.value
                                                                                 setInlineEditData({ ...inlineEditData, options: newOpts })
                                                                             }}
-                                                                            style={{ flex: 1, padding: '0.25rem 0.5rem', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.8rem' }}
+                                                                            style={{ flex: 1, padding: '0.25rem 0.5rem', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '1.1rem' }}
                                                                         />
                                                                     </div>
                                                                 ))}
@@ -917,13 +946,13 @@ const QuestionsAndAnswers = () => {
                                                         </div>
                                                     ) : (
                                                         <div style={{ flex: 1 }}>
-                                                            <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 600, color: '#1e293b' }}>
+                                                            <p style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600, color: '#1e293b' }}>
                                                                 {item.question}
                                                             </p>
                                                             {item.options && item.options.filter(o => o).length > 0 && (
                                                                 <div style={{ marginTop: '0.35rem', paddingLeft: '0.5rem' }}>
                                                                     {item.options.map((opt, oIdx) => (
-                                                                        opt && <p key={oIdx} style={{ margin: '2px 0', fontSize: '0.8rem', color: '#475569' }}>
+                                                                        opt && <p key={oIdx} style={{ margin: '2px 0', fontSize: '1.1rem', color: '#475569' }}>
                                                                             <span style={{ fontWeight: 700, color: '#94a3b8', marginRight: '4px' }}>{String.fromCharCode(65 + oIdx)}.</span> {opt}
                                                                         </p>
                                                                     ))}
@@ -1093,6 +1122,12 @@ const QuestionsAndAnswers = () => {
                                         </div>
                                     </summary>
                                     <div className="qa-metadata-body">
+                                        <div className="qa-form-row">
+                                            <div className="qa-form-group">
+                                                <label className="qa-label">Question Code</label>
+                                                <input className="qa-input" value={questionCode} onChange={(e) => setQuestionCode(e.target.value)} placeholder="Enter question code" />
+                                            </div>
+                                        </div>
                                         <div className="qa-form-row col-2">
                                             <div className="qa-form-group">
                                                 <label className="qa-label">Category</label>
@@ -1177,6 +1212,7 @@ const QuestionsAndAnswers = () => {
                                             renderComponent={(props) => <textarea {...props} className={`qa-input qa-textarea ${isDuplicateQuestion ? 'qa-duplicate-input' : ''}`} placeholder="Type your question here..." rows="3" required />}
                                         />
                                     </VoiceInputWrapper>
+                                    <LivePreview text={question} label="Question" />
 
                                     {/* Drag overlay hint */}
                                     {isDragOver && !isExtracting && (
@@ -1333,6 +1369,7 @@ const QuestionsAndAnswers = () => {
                                         renderComponent={(props) => <input {...props} className="qa-input" placeholder="Enter the correct answer" required />}
                                     />
                                 </VoiceInputWrapper>
+                                <LivePreview text={answer} label="Answer" />
                             </div>
 
                             <div className="qa-form-group">
@@ -1347,6 +1384,7 @@ const QuestionsAndAnswers = () => {
                                                 enabled={voiceLang === 'ml-IN'}
                                                 renderComponent={(props) => <input {...props} className="qa-input" placeholder={`Wrong Option ${idx + 1}`} required />}
                                             />
+                                            <LivePreview text={opt} label={`Option ${idx + 1}`} />
                                         </VoiceInputWrapper>
                                     ))}
                                 </div>
@@ -1384,6 +1422,7 @@ const QuestionsAndAnswers = () => {
                                         containerStyles={{ width: '100%' }}
                                         renderComponent={(props) => <textarea {...props} className="qa-input qa-textarea" placeholder="Additional notes" rows="3" />}
                                     />
+                                    <LivePreview text={review} label="Review/Notes" />
                                 </VoiceInputWrapper>
                             </div>
 

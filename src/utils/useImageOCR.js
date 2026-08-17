@@ -158,20 +158,20 @@ function parseQuestionsFromText(rawText) {
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
 
-        // Match question numbers: "1. ", "1) ", "Q1. "
-        const qMatch = /^(?:Q(?:uestion)?\s*\.?\s*)?(\d{1,3})\s*([.):])\s*(.+)/i.exec(line);
+        // Match question numbers: "1. ", "1) ", "Q1. ", "1- ", or even just "1 " if text follows
+        const qMatch = /^(?:Q(?:uestion)?\s*\.?\s*)?(\d{1,3})\s*([.):\-]|\b)?\s*(.*)/i.exec(line);
         
-        // Match letter options: "A. ", "A) ", "(A) "
-        const optMatch = /^(?:\([A-Da-d]\)|\[[A-Da-d]\]|[A-Da-d][.)])\s+(.+)/.exec(line);
+        // Match letter options: "A. ", "A) ", "(A) ", "A."
+        const optMatch = /^(?:\([A-Da-d1-4]\)|\[[A-Da-d1-4]\]|[A-Da-d1-4][.)])\s*(.+)/.exec(line);
 
-        if (optMatch) {
-            // It's definitely a letter option
+        if (optMatch && (!qMatch || currentQ)) {
+            // It's definitely an option
             if (currentQ) {
                 currentQ.options.push(optMatch[1]);
             } else {
                 currentQ = { text: line, options: [] }; // Orphan option
             }
-        } else if (qMatch) {
+        } else if (qMatch && qMatch[3]) {
             const num = parseInt(qMatch[1], 10);
             const delimiter = qMatch[2];
             

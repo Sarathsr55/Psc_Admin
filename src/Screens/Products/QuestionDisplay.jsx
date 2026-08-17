@@ -1,6 +1,7 @@
 import React from "react";
 import "./QuestionDisplay.css";
 import Seperator from "../../Components/Seperator";
+import DOMPurify from 'dompurify';
 
 export default function QuestionDisplay( {data} ) {
     
@@ -29,16 +30,16 @@ export default function QuestionDisplay( {data} ) {
           )}
         </div>
           <Seperator height={12} /> 
-        <p className="question-text"><strong>Q:</strong> {data?.question}</p>
+        <p className="question-text"><strong>Q:</strong> <span dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(data?.question || '', { ALLOWED_TAGS: ['u', 'b', 'i', 'strong', 'em'] }) }} /></p>
 
-        <p className="answer-text"><strong>A:</strong> {data?.answer}</p>
+        <p className="answer-text"><strong>A:</strong> <span dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(data?.answer || '', { ALLOWED_TAGS: ['u', 'b', 'i', 'strong', 'em'] }) }} /></p>
         
         {data?.options && data.options.length > 0 && (
           <div className="options-list">
             <ul>
               {data.options.map((opt, idx) => (
                 <li key={idx} className="option-item">
-                  <span style={{fontWeight: 700, marginRight: '6px', color: '#94a3b8'}}>{String.fromCharCode(65 + idx)}.</span> {opt}
+                  <span style={{fontWeight: 700, marginRight: '6px', color: '#94a3b8'}}>{String.fromCharCode(65 + idx)}.</span> <span dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(opt || '', { ALLOWED_TAGS: ['u', 'b', 'i', 'strong', 'em'] }) }} />
                 </li>
               ))}
             </ul>

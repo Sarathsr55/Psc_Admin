@@ -32,7 +32,11 @@ const BACKEND_API = {
     DELETENOTES: '/notes/deletenotes',
     GETALLNOTES: '/notes/allnotes',
     DASHBOARD_STATS: '/user/dashboard-stats',
-    FETCH_OPTIONS: '/qsans/fetchoptions'
+    FETCH_OPTIONS: '/qsans/fetchoptions',
+    ADD_STUDY_MATERIAL: '/studymaterial/add',
+    GET_ALL_STUDY_MATERIALS: '/studymaterial/all',
+    UPDATE_STUDY_MATERIAL: '/studymaterial/update',
+    DELETE_STUDY_MATERIAL: '/studymaterial/delete'
 }
 
 export default { BACKEND_API }

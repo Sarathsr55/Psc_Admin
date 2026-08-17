@@ -16,7 +16,7 @@ import { PieChart } from 'react-minimal-pie-chart'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
 const Dashboard = () => {
-    const [stats, setStats] = useState({ totalUsers: 0, topUsers: [] })
+    const [stats, setStats] = useState({ totalUsers: 0, activeUsers: 0, topUsers: [] })
     const [totalQuestions, setTotalQuestions] = useState(0)
     const [isLoading, setIsLoading] = useState(true)
     const [categoryData, setCategoryData] = useState([])
@@ -91,8 +91,8 @@ const Dashboard = () => {
         return <div className="loading-container">Loading Dashboard...</div>
     }
 
-    // Mock active users based on total users for UI demo
-    const activeUsers = Math.max(1, Math.floor(stats.totalUsers * 0.15));
+    // Use activeUsers from stats or default to 0
+    const activeUsers = stats.activeUsers || 0;
 
     // Format numbers like 12.8k
     const formatNumber = (num) => {
@@ -141,7 +141,7 @@ const Dashboard = () => {
                         </div>
                         <div className="box-bottom">
                             <h4>Active Users</h4>
-                            <h5>{formatNumber(activeUsers)}</h5>
+                            <h5>{activeUsers}</h5>
                         </div>
                     </div>
 
@@ -155,7 +155,7 @@ const Dashboard = () => {
                         </div>
                         <div className="box-bottom">
                             <h4>Total Questions</h4>
-                            <h5>{formatNumber(totalQuestions)}</h5>
+                            <h5>{totalQuestions}</h5>
                         </div>
                     </div>
 

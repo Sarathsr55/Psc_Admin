@@ -12,6 +12,7 @@ import Notes from '../../Screens/Products/Notes'
 import Users from '../../Screens/Users/Users'
 import UserActivityLogs from '../../Screens/Logs/UserActivityLogs'
 import PaymentLogs from '../../Screens/Logs/PaymentLogs'
+import StudyMaterials from '../../Screens/Products/StudyMaterials'
 
 
 const Tab = () => {
@@ -62,6 +63,10 @@ const Tab = () => {
                     <IonIcon icon={settingsOutline} />
                     <h6>Settings</h6>
                 </div>
+                <div className={tabno === 8 ? 'studymaterials-panel row active' : 'studymaterials-panel row'} onClick={() => tabState(8)}>
+                    <IonIcon icon={documentTextOutline} />
+                    <h6>Study Materials</h6>
+                </div>
 
             </div>
             <div className='tab-component'>
@@ -85,6 +90,9 @@ const Tab = () => {
                 </div>
                 <div className={tabno === 7 ?'active-tab':'tab'} >
                     
+                </div>
+                <div className={tabno === 8 ?'active-tab':'tab'} >
+                    <StudyMaterials/>
                 </div>
 
             </div>
