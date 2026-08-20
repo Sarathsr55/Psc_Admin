@@ -246,6 +246,25 @@
     text-align: center;
 }
 
+/* ── Custom Bullet Lists ───────────────────────────────────────────────── */
+.canvas-editor-container ul {
+    list-style-type: none;
+    padding-left: 20px;
+    margin-top: 4px;
+    margin-bottom: 4px;
+}
+.canvas-editor-container ul li {
+    position: relative;
+    margin-bottom: 2px;
+}
+.canvas-editor-container ul li::before {
+    content: "➔";
+    color: #3b82f6;
+    position: absolute;
+    left: -20px;
+    font-weight: bold;
+}
+
 /* ── A4 Paper ──────────────────────────────────────────────────────────── */
 .canvas-paper {
     background: white;

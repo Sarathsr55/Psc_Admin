@@ -42,14 +42,12 @@
     pointer-events: auto !important;
 }
 
-/* For textareas, position at the bottom right and make always visible */
+/* For textareas, position at the bottom right */
 .voice-input-wrapper-textarea .voice-controls {
     top: auto;
     bottom: 12px;
     right: 12px;
     transform: none;
-    opacity: 1 !important;
-    pointer-events: auto !important;
     background: white;
     border-radius: 50%;
     box-shadow: 0 2px 6px rgba(0,0,0,0.15);

@@ -18,6 +18,9 @@ const addNote = async (token, note) => {
         subtopic: note?.subtopic,
         post: note?.post,
         review: note?.review,
+        blocks: note?.blocks,
+        parentFolderId: note?.parentFolderId,
+        isPinned: note?.isPinned,
     }
     const noteUploading = await AuthRequest.post(ApiConstants.BACKEND_API.ADDNOTES, object, {
         headers: {
@@ -51,6 +54,9 @@ const updateNotes = async (note) => {
         subtopic: note?.subtopic,
         post: note?.post,
         review: note?.review,
+        blocks: note?.blocks,
+        parentFolderId: note?.parentFolderId,
+        isPinned: note?.isPinned,
     }
     const noteUpdating = await AuthRequest.post(ApiConstants.BACKEND_API.UPDATENOTES, object, {
         headers: {

@@ -3,6 +3,8 @@ import { Rnd } from 'react-rnd';
 import { v4 as uuidv4 } from 'uuid';
 import { IonIcon } from '@ionic/react';
 import { arrowBackOutline, addOutline, saveOutline, imageOutline } from 'ionicons/icons';
+import { FaMicrophone, FaStop } from 'react-icons/fa';
+import '../../Components/VoiceInput/VoiceInput.css';
 import { ReactTransliterate } from 'react-transliterate';
 import 'react-transliterate/dist/index.css';
 import './CanvasEditor.css';
@@ -15,42 +17,236 @@ const A4_HEIGHT = 1123;
 
 // ── Manglish → Malayalam transliteration map ───────────────────────────────
 // ── Malayalam floating panel ───────────────────────────────
-const MalayalamPanel = ({ onInsert, onClose }) => {
+const MalayalamPanel = ({ isKV, onInsert, onInsertKV, onClose, elementId }) => {
     const [text, setText] = useState('');
+    const [kvKey, setKvKey] = useState('');
+    const [kvVal, setKvVal] = useState('');
+    const inputRef = useRef(null);
+    const valRef = useRef(null);
+    const recognitionRef = useRef(null);
+    const [listeningField, setListeningField] = useState(null);
 
-    const handleInsert = (val) => {
-        const toInsert = val ?? text;
-        if (toInsert.trim()) {
-            onInsert(toInsert);
-            setText('');
+    useEffect(() => {
+        return () => {
+            if (recognitionRef.current) recognitionRef.current.stop();
+        };
+    }, []);
+
+    const toggleListening = (field) => {
+        if (listeningField === field) {
+            recognitionRef.current?.stop();
+            setListeningField(null);
+            return;
+        }
+        if (recognitionRef.current) recognitionRef.current.stop();
+
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            alert('Speech recognition is not supported in this browser.');
+            return;
+        }
+
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'ml-IN';
+        recognition.continuous = true;
+        recognition.interimResults = false;
+
+        recognition.onresult = (event) => {
+            let transcript = '';
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+                if (event.results[i].isFinal) {
+                    transcript += event.results[i][0].transcript + ' ';
+                }
+            }
+            if (transcript) {
+                if (field === 'key') setKvKey(prev => prev + transcript);
+                else if (field === 'val') setKvVal(prev => prev + transcript);
+                else setText(prev => prev + transcript);
+            }
+        };
+
+        recognition.onerror = () => setListeningField(null);
+        recognition.onend = () => setListeningField(null);
+
+        recognition.start();
+        recognitionRef.current = recognition;
+        setListeningField(field);
+    };
+
+    useEffect(() => {
+        // Auto-focus when panel opens or element changes
+        setTimeout(() => {
+            if (inputRef.current) inputRef.current.focus();
+        }, 100);
+    }, [isKV, elementId]);
+
+    const handleInsert = () => {
+        if (isKV) {
+            if (kvKey.trim() || kvVal.trim()) {
+                onInsertKV(kvKey, kvVal);
+                setKvKey('');
+                setKvVal('');
+                // optionally move focus back to key
+                if (inputRef.current) inputRef.current.focus();
+            }
+        } else {
+            if (text.trim()) {
+                onInsert(text);
+                setText('');
+            }
         }
     };
 
     return (
         <div className="ce-ml-panel" onMouseDown={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()}>
             <div className="ce-ml-panel-header">
-                <span>🇮🇳 Malayalam — type Manglish, press Enter to insert into box</span>
+                <span>🇮🇳 Malayalam — type Manglish, press Enter to insert</span>
                 <button className="ce-ml-close" onMouseDown={e => { e.preventDefault(); onClose(); }}>✕</button>
             </div>
             <div className="ce-ml-panel-body">
-                <ReactTransliterate
-                    value={text}
-                    onChangeText={setText}
-                    lang="ml"
-                    enabled={true}
-                    renderComponent={(props) => (
-                        <input
-                            {...props}
-                            className="ce-ml-input"
-                            placeholder="Type in Manglish here (e.g. namaskaram, nanni)…"
-                            autoFocus
+                {isKV ? (
+                    <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                        <div style={{ flex: 1, position: 'relative' }}>
+                            <ReactTransliterate
+                                value={kvKey}
+                                onChangeText={setKvKey}
+                                lang="ml"
+                                enabled={true}
+                                renderComponent={(props) => (
+                                    <input
+                                        {...props}
+                                        ref={(el) => {
+                                            if (typeof props.ref === 'function') props.ref(el);
+                                            else if (props.ref) props.ref.current = el;
+                                            inputRef.current = el;
+                                        }}
+                                        className="ce-ml-input"
+                                        placeholder="Key (Manglish)…"
+                                        style={{ paddingRight: '30px' }}
+                                        onKeyDown={(e) => {
+                                            if (props.onKeyDown) props.onKeyDown(e);
+                                            if (e.key === 'Enter' && !e.defaultPrevented) {
+                                                e.preventDefault();
+                                                valRef.current?.focus();
+                                            }
+                                        }}
+                                    />
+                                )}
+                            />
+                            <div className="voice-controls" style={{ opacity: 1, pointerEvents: 'auto', right: '4px' }}>
+                                <button
+                                    type="button"
+                                    title="Dictate in Malayalam"
+                                    className={`voice-mic-btn ${listeningField === 'key' ? 'listening' : ''}`}
+                                    onClick={(e) => { e.preventDefault(); toggleListening('key'); }}
+                                >
+                                    {listeningField === 'key' 
+                                        ? <FaStop size={16} color="#ef4444" /> 
+                                        : <FaMicrophone size={18} color="#000000" />
+                                    }
+                                    {listeningField === 'key' && <span className="listening-pulse"></span>}
+                                </button>
+                            </div>
+                        </div>
+                        <div style={{ flex: 1, position: 'relative' }}>
+                            <ReactTransliterate
+                                value={kvVal}
+                                onChangeText={setKvVal}
+                                lang="ml"
+                                enabled={true}
+                                renderComponent={(props) => (
+                                    <input
+                                        {...props}
+                                        ref={(el) => {
+                                            if (typeof props.ref === 'function') props.ref(el);
+                                            else if (props.ref) props.ref.current = el;
+                                            valRef.current = el;
+                                        }}
+                                        className="ce-ml-input"
+                                        placeholder="Value (Manglish)…"
+                                        style={{ paddingRight: '30px' }}
+                                        onKeyDown={(e) => {
+                                            if (props.onKeyDown) props.onKeyDown(e);
+                                            if (e.key === 'Enter' && !e.defaultPrevented) {
+                                                e.preventDefault();
+                                                handleInsert();
+                                            }
+                                        }}
+                                    />
+                                )}
+                            />
+                            <div className="voice-controls" style={{ opacity: 1, pointerEvents: 'auto', right: '4px' }}>
+                                <button
+                                    type="button"
+                                    title="Dictate in Malayalam"
+                                    className={`voice-mic-btn ${listeningField === 'val' ? 'listening' : ''}`}
+                                    onClick={(e) => { e.preventDefault(); toggleListening('val'); }}
+                                >
+                                    {listeningField === 'val' 
+                                        ? <FaStop size={16} color="#ef4444" /> 
+                                        : <FaMicrophone size={18} color="#000000" />
+                                    }
+                                    {listeningField === 'val' && <span className="listening-pulse"></span>}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                ) : (
+                    <div style={{ position: 'relative' }}>
+                        <ReactTransliterate
+                            value={text}
+                            onChangeText={setText}
+                            lang="ml"
+                            enabled={true}
+                            renderComponent={(props) => (
+                                <input
+                                    {...props}
+                                    ref={(el) => {
+                                        if (typeof props.ref === 'function') props.ref(el);
+                                        else if (props.ref) props.ref.current = el;
+                                        inputRef.current = el;
+                                    }}
+                                    className="ce-ml-input"
+                                    placeholder="Type in Manglish here…"
+                                    onKeyDown={(e) => {
+                                        if (props.onKeyDown) props.onKeyDown(e);
+                                        if (e.key === 'Enter' && !e.defaultPrevented) {
+                                            e.preventDefault();
+                                            handleInsert();
+                                        }
+                                    }}
+                                    style={{ paddingRight: '36px' }}
+                                />
+                            )}
                         />
-                    )}
-                />
+                        <div className="voice-controls" style={{ opacity: 1, pointerEvents: 'auto', right: '4px' }}>
+                            <button
+                                type="button"
+                                title="Dictate in Malayalam"
+                                className={`voice-mic-btn ${listeningField === 'text' ? 'listening' : ''}`}
+                                onClick={(e) => { e.preventDefault(); toggleListening('text'); }}
+                            >
+                                {listeningField === 'text' 
+                                    ? <FaStop size={16} color="#ef4444" /> 
+                                    : <FaMicrophone size={18} color="#000000" />
+                                }
+                                {listeningField === 'text' && <span className="listening-pulse"></span>}
+                            </button>
+                        </div>
+                    </div>
+                )}
+                
                 <div className="ce-ml-panel-actions">
-                    <div className="ce-ml-preview">{text || <span style={{ color: '#adb5bd' }}>Transliterated text appears here…</span>}</div>
+                    <div className="ce-ml-preview">
+                        {!isKV ? (text || <span style={{ color: '#adb5bd' }}>Preview…</span>) : (
+                            <span style={{ color: (kvKey || kvVal) ? '#000' : '#adb5bd' }}>
+                                {kvKey || 'Key'} - {kvVal || 'Value'}
+                            </span>
+                        )}
+                    </div>
                     <button
                         className="ce-ml-insert-btn"
+                        onClick={e => { e.preventDefault(); handleInsert(); }}
                         onMouseDown={e => { e.preventDefault(); handleInsert(); }}>
                         Insert ↵
                     </button>
@@ -86,9 +282,10 @@ const TextEditor = React.memo(({ element, updateElement, savedRangeRef }) => {
             contentEditable
             suppressContentEditableWarning
             onFocus={(e) => {
-                if (element.content === 'Click to edit...') {
-                    e.target.innerHTML = '';
-                    updateElement(element.id, { content: '' });
+                if (element.content === 'Click to edit...' || element.content === '<ul><li>Click to edit...</li></ul>') {
+                    const isList = element.content === '<ul><li>Click to edit...</li></ul>';
+                    e.target.innerHTML = isList ? '<ul><li><br></li></ul>' : '';
+                    updateElement(element.id, { content: isList ? '<ul><li><br></li></ul>' : '' });
                 }
             }}
             onMouseUp={saveRange}
@@ -178,8 +375,9 @@ const KeyValueRow = React.memo(({ elementId, pair, idx, pairsLength, updatePair,
     };
 
     return (
-        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', marginBottom: '6px' }}>
-            <div
+        <div style={{ marginBottom: '6px', lineHeight: '1.6' }}>
+            <span style={{ marginRight: '8px', userSelect: 'none', color: '#3b82f6' }}>➔</span>
+            <span
                 id={`ce-text-${elementId}-key-${idx}`}
                 ref={keyRef}
                 contentEditable
@@ -194,28 +392,26 @@ const KeyValueRow = React.memo(({ elementId, pair, idx, pairsLength, updatePair,
                 }}
                 onBlur={(e) => updatePair(pair.id, 'key', e.target.innerHTML)}
                 onKeyDown={(e) => handleKeyDown(e, 'key')}
-                style={{ fontWeight: 'bold', outline: 'none', wordBreak: 'break-word', flexShrink: 0, marginRight: '8px', minWidth: '30px', maxWidth: '100%' }}
+                style={{ fontWeight: 'bold', outline: 'none', wordBreak: 'break-word', display: 'inline', minWidth: '1px' }}
             />
-            <div style={{ display: 'flex', flex: 1, minWidth: '100px', alignItems: 'flex-start' }}>
-                <span style={{ fontWeight: 'bold', flexShrink: 0, marginRight: '8px', userSelect: 'none' }}>-</span>
-                <div
-                    id={`ce-text-${elementId}-val-${idx}`}
-                    ref={valRef}
-                    contentEditable
-                    suppressContentEditableWarning
-                    onMouseUp={saveRange}
-                    onKeyUp={saveRange}
-                    onFocus={(e) => {
-                        if (pair.value === 'Value') {
-                            e.target.innerHTML = '';
-                            updatePair(pair.id, 'value', '');
-                        }
-                    }}
-                    onBlur={(e) => updatePair(pair.id, 'value', e.target.innerHTML)}
-                    onKeyDown={(e) => handleKeyDown(e, 'value')}
-                    style={{ outline: 'none', wordBreak: 'break-word', flex: 1 }}
-                />
-            </div>
+            <span style={{ fontWeight: 'bold', userSelect: 'none', margin: '0 8px' }}>-</span>
+            <span
+                id={`ce-text-${elementId}-val-${idx}`}
+                ref={valRef}
+                contentEditable
+                suppressContentEditableWarning
+                onMouseUp={saveRange}
+                onKeyUp={saveRange}
+                onFocus={(e) => {
+                    if (pair.value === 'Value') {
+                        e.target.innerHTML = '';
+                        updatePair(pair.id, 'value', '');
+                    }
+                }}
+                onBlur={(e) => updatePair(pair.id, 'value', e.target.innerHTML)}
+                onKeyDown={(e) => handleKeyDown(e, 'value')}
+                style={{ outline: 'none', wordBreak: 'break-word', display: 'inline', minWidth: '1px' }}
+            />
         </div>
     );
 });
@@ -387,17 +583,37 @@ const CanvasEditor = ({ material, onBack }) => {
     // ── Element CRUD ────────────────────────────────────────────────────────
     const addElement = useCallback((type, subType = '') => {
         const styles = {
-            heading: { fontSize: '28px', fontWeight: 'bold', fontFamily: 'Arial', color: '#1e293b', lineHeight: '1.3' },
-            subheading: { fontSize: '20px', fontWeight: '600', fontFamily: 'Arial', color: '#334155', lineHeight: '1.4' },
+            heading: { fontSize: '20px', fontWeight: 'bold', fontFamily: 'Arial', color: '#1e293b', lineHeight: '1.3' },
+            subheading: { fontSize: '18px', fontWeight: '600', fontFamily: 'Arial', color: '#334155', lineHeight: '1.4' },
             paragraph: { fontSize: '14px', fontWeight: 'normal', fontFamily: 'Arial', color: '#1e293b', lineHeight: '1.6' },
             keyvalue: { fontSize: '14px', fontFamily: 'Arial', color: '#1e293b', lineHeight: '1.6' },
         };
+        let newY = 40;
+        const pageDOM = document.querySelector('.canvas-paper');
+        if (pageDOM) {
+            const elements = Array.from(pageDOM.querySelectorAll('.ce-element'));
+            if (elements.length > 0) {
+                let maxY = 40;
+                elements.forEach(elNode => {
+                    const transform = elNode.style.transform;
+                    let y = 0;
+                    if (transform) {
+                        const match = transform.match(/translate(?:3d)?\([^,]+,\s*([^,)]+)/);
+                        if (match && match[1]) y = parseFloat(match[1]);
+                    }
+                    const bottom = y + elNode.offsetHeight;
+                    if (bottom > maxY) maxY = bottom;
+                });
+                newY = maxY + 16; // 16px gap below the last element
+            }
+        }
+
         const el = {
             id: uuidv4(), type, subType,
-            x: 60, y: 60,
-            width: type === 'image' ? 250 : 350,
-            height: type === 'image' ? 250 : 60,
-            content: type === 'image' ? '' : (type === 'key-value' ? [{ id: uuidv4(), key: 'Key', value: 'Value' }] : 'Click to edit...'),
+            x: 40, y: newY,
+            width: type === 'image' ? 250 : 'auto',
+            height: type === 'image' ? 250 : 'auto',
+            content: type === 'image' ? '' : (type === 'key-value' ? [{ id: uuidv4(), key: 'Key', value: 'Value' }] : (subType === 'paragraph' ? '<ul><li>Click to edit...</li></ul>' : 'Click to edit...')),
             styles: styles[subType] || (type === 'key-value' ? styles.keyvalue : styles.paragraph),
         };
         setPages(prev => {
@@ -589,6 +805,26 @@ const CanvasEditor = ({ material, onBack }) => {
         }
     }, []);
 
+    const handleMlInsertKV = useCallback((kText, vText) => {
+        if (!selectedElement || selectedElement.type !== 'key-value') return;
+        
+        const currentPairs = Array.isArray(selectedElement.content) 
+            ? selectedElement.content 
+            : [{ id: uuidv4(), key: selectedElement.content?.key || 'Key', value: selectedElement.content?.value || 'Value' }];
+            
+        let newPairs = [...currentPairs];
+        const lastPair = newPairs[newPairs.length - 1];
+        
+        // Replace empty default pair or append
+        if (newPairs.length === 1 && (lastPair.key === 'Key' || lastPair.key === '') && (lastPair.value === 'Value' || lastPair.value === '')) {
+            newPairs[0] = { ...newPairs[0], key: kText || 'Key', value: vText || 'Value' };
+        } else {
+            newPairs.push({ id: uuidv4(), key: kText || 'Key', value: vText || 'Value' });
+        }
+        
+        updateElement(selectedElement.id, { content: newPairs });
+    }, [selectedElement, updateElement]);
+
     // ── Keyboard shortcuts ──────────────────────────────────────────────────
     const handleKeyDown = (e) => {
         if ((e.ctrlKey || e.metaKey) && !e.shiftKey) {
@@ -729,6 +965,31 @@ const CanvasEditor = ({ material, onBack }) => {
                 <button onClick={onBack} className="ce-btn ce-btn-back">← Back</button>
                 <div className="ce-sep" />
 
+                <div style={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
+                    <ReactTransliterate
+                        value={metadata.title}
+                        onChangeText={(text) => setMetadata({...metadata, title: text})}
+                        lang="ml"
+                        enabled={malayalamMode}
+                        renderComponent={(props) => (
+                            <input 
+                                {...props}
+                                type="text" 
+                                placeholder="Material Title..." 
+                                style={{ padding: '6px 36px 6px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '14px', width: '200px', outline: 'none' }}
+                            />
+                        )}
+                    />
+                    <button 
+                        onClick={() => setMalayalamMode(!malayalamMode)}
+                        title="Toggle Malayalam Transliteration"
+                        style={{ position: 'absolute', right: '4px', background: malayalamMode ? '#3b82f6' : 'transparent', color: malayalamMode ? 'white' : '#64748b', border: 'none', borderRadius: '4px', padding: '4px', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>
+                        ML
+                    </button>
+                </div>
+                
+                <div className="ce-sep" />
+
                 <span className="ce-tb-label">Insert:</span>
                 <button onClick={() => addElement('text', 'heading')} className="ce-btn">H1</button>
                 <button onClick={() => addElement('text', 'subheading')} className="ce-btn">H2</button>
@@ -781,7 +1042,10 @@ const CanvasEditor = ({ material, onBack }) => {
             {/* ── Malayalam Panel (shown above workspace when active) ── */}
             {showMlPanel && (
                 <MalayalamPanel
+                    isKV={selectedElement?.type === 'key-value'}
+                    elementId={selectedElement?.id}
                     onInsert={handleMlInsert}
+                    onInsertKV={handleMlInsertKV}
                     onClose={() => setShowMlPanel(false)}
                 />
             )}
@@ -811,6 +1075,7 @@ const CanvasEditor = ({ material, onBack }) => {
                                                 <div style={{ display: 'flex', flexWrap: 'wrap' }}>
                                                     {(Array.isArray(el.content) ? el.content : []).map(pair => (
                                                         <div key={pair.id} style={{ display: 'flex', width: '100%', marginBottom: '6px' }}>
+                                                            <span style={{ marginRight: '8px', color: '#3b82f6' }}>➔</span>
                                                             <div style={{ fontWeight: 'bold', marginRight: '8px' }} dangerouslySetInnerHTML={{ __html: pair.key }} />
                                                             <span style={{ fontWeight: 'bold', marginRight: '8px' }}>-</span>
                                                             <div dangerouslySetInnerHTML={{ __html: pair.value }} />
