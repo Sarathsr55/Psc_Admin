@@ -1,7 +1,5 @@
 import React, { useState } from 'react'
-import './styleSheet.css'
-import Seperator from '../Components/Seperator'
-import animation from '../constants/animation'
+import './LoginScreen.css'
 import { IonIcon } from '@ionic/react'
 import { eye, eyeOff } from 'ionicons/icons'
 import { ToastContainer, toast } from 'react-toastify';
@@ -9,10 +7,10 @@ import 'react-toastify/dist/ReactToastify.css'
 import { administrationLogin } from '../services/Authentication'
 import { useNavigate } from 'react-router-dom'
 import { Loader } from '../Components/Loader/Loader'
+import { FaUserShield, FaDatabase, FaChartBar } from 'react-icons/fa'
 
 const LoginScreen = () => {
   const navigate = useNavigate()
-
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -41,25 +39,84 @@ const LoginScreen = () => {
       }
     }
   }
+
   return (
-    <div className='login_page' >
+    <div className='login-page'>
       <ToastContainer />
-      <div className='login-form'>
-        <h3 style={{ display: 'flex', justifyContent: 'center' }}>Login</h3>
-        <Seperator height={30} />
-        <Loader size={150} />
-        <Seperator height={50} />
-        <div style={{ position: 'relative', width: '100%' }}>
-          <input type="text" placeholder='Email' value={email} onChange={(e) => setEmail(e.target.value)} />
-          <p style={{ position: 'absolute', top: 0, right: 15, fontSize: 12, color: 'grey', fontWeight: 50 }}>@gmail.com</p>
+      {/* Animated background blobs */}
+      <div className='login-blob login-blob-1' />
+      <div className='login-blob login-blob-2' />
+      <div className='login-blob login-blob-3' />
+
+      <div className='login-card'>
+        {/* Brand */}
+        <div className='login-brand'>
+          <div className='login-brand-icon'>
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 3L1 9l11 6 9-4.91V17h2V9L12 3zM5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82z"/>
+            </svg>
+          </div>
+          <span className='login-brand-name'>
+            <span className='brand-main'>Aptara</span>
+            <span className='brand-accent'>PSC</span>
+          </span>
         </div>
-        <Seperator height={25} />
-        <div style={{ position: 'relative', width: '100%' }}>
-          <input type={isPassShown ? "text" : "password"} placeholder='Password' onChange={(e) => setPassword(e.target.value)} />
-          <div style={{ position: 'absolute', top: 0, right: 5, padding: 10, cursor: 'pointer' }}><IonIcon onClick={() => setIsPassShown(!isPassShown)} icon={isPassShown ? eye : eyeOff} /></div>
+
+        {/* Header */}
+        <div className='login-header'>
+          <h2>Admin Portal</h2>
+          <p>Sign in to manage the application and oversee operations.</p>
         </div>
-        <Seperator height={25} />
-        <button onClick={onSubmit}>{isLoading ? <Loader size={25} /> : 'Login'}</button>
+
+        {/* Features row */}
+        <div className='login-features'>
+          <div className='login-feature-item'>
+            <div className='login-feature-icon'><FaUserShield /></div>
+            <span>Access Control</span>
+          </div>
+          <div className='login-feature-item'>
+            <div className='login-feature-icon'><FaDatabase /></div>
+            <span>Data Management</span>
+          </div>
+          <div className='login-feature-item'>
+            <div className='login-feature-icon'><FaChartBar /></div>
+            <span>Analytics</span>
+          </div>
+        </div>
+
+        <div className='login-divider'>Sign in to continue</div>
+
+        <div className="login-btn-container">
+          <div className="login-input-group">
+            <input 
+              type="text" 
+              className="login-input" 
+              placeholder="Username" 
+              value={email} 
+              onChange={(e) => setEmail(e.target.value)} 
+              onKeyDown={(e) => e.key === 'Enter' && onSubmit()}
+            />
+            <span className="login-input-suffix">@gmail.com</span>
+          </div>
+
+          <div className="login-input-group">
+            <input 
+              type={isPassShown ? "text" : "password"} 
+              className="login-input" 
+              placeholder="Password" 
+              value={password}
+              onChange={(e) => setPassword(e.target.value)} 
+              onKeyDown={(e) => e.key === 'Enter' && onSubmit()}
+            />
+            <div className="login-input-icon" onClick={() => setIsPassShown(!isPassShown)}>
+              <IonIcon icon={isPassShown ? eye : eyeOff} />
+            </div>
+          </div>
+
+          <button className="login-submit-btn" onClick={onSubmit} disabled={isLoading}>
+            {isLoading ? <Loader size={24} /> : 'Login to Admin'}
+          </button>
+        </div>
       </div>
     </div>
   )

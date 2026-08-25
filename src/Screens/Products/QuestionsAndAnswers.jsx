@@ -33,7 +33,36 @@ const LivePreview = ({ text, label }) => {
     );
 };
 
-const QuestionsDisplayList = ({ data, isLoading, isError, error, searchQuery, filterSubject, onEdit, onDelete }) => {
+const PdfPageCard = React.memo(({ idx, dataUrl, isSelected, onToggle }) => {
+    return (
+        <div
+            onClick={() => onToggle(idx)}
+            style={{
+                cursor: 'pointer',
+                border: isSelected ? '2px solid #3b82f6' : '2px solid #e2e8f0',
+                borderRadius: '8px',
+                padding: '4px',
+                position: 'relative',
+                opacity: isSelected ? 1 : 0.5,
+                transition: 'all 0.2s ease'
+            }}
+        >
+            <img src={dataUrl} alt={`Page ${idx + 1}`} style={{ width: '100%', height: 'auto', display: 'block', borderRadius: '4px' }} />
+            <div style={{ position: 'absolute', top: '8px', right: '8px', background: 'white', borderRadius: '50%', padding: '2px', display: 'flex' }}>
+                <input
+                    type="checkbox"
+                    checked={isSelected || false}
+                    onChange={() => onToggle(idx)}
+                    onClick={(e) => e.stopPropagation()}
+                    style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                />
+            </div>
+            <div style={{ textAlign: 'center', marginTop: '4px', fontSize: '0.8rem', fontWeight: 600 }}>Page {idx + 1}</div>
+        </div>
+    );
+});
+
+const QuestionsDisplayList = React.memo(({ data, isLoading, isError, error, searchQuery, filterSubject, onEdit, onDelete }) => {
     if (isLoading) return <div className="qa-loading"><Loader size={100} /></div>
     if (isError) return <div className="qa-error">Error: {error.message}</div>
 
@@ -82,7 +111,7 @@ const QuestionsDisplayList = ({ data, isLoading, isError, error, searchQuery, fi
             ))}
         </div>
     )
-}
+});
 
 const QuestionsAndAnswers = () => {
     const queryClient = useQueryClient()
@@ -418,11 +447,13 @@ const QuestionsAndAnswers = () => {
         setPdfReviewStep('pages');
     };
 
-    const togglePdfPageSelection = (idx) => {
-        const updated = [...selectedPdfPages];
-        updated[idx] = !updated[idx];
-        setSelectedPdfPages(updated);
-    };
+    const togglePdfPageSelection = useCallback((idx) => {
+        setSelectedPdfPages(prev => {
+            const updated = [...prev];
+            updated[idx] = !updated[idx];
+            return updated;
+        });
+    }, []);
 
     // ── Question List Sorting & Reordering helpers ────────────────────────────
     const moveQuestion = (fromIdx, toIdx) => {
@@ -762,9 +793,9 @@ const QuestionsAndAnswers = () => {
         }
     }
 
-    const onHandleDelete = async (obj) => {
+    const onHandleDelete = useCallback(async (obj) => {
         setIsDeletePopup(obj)
-    }
+    }, []);
 
     const confirmDelete = async (_id) => {
         setIsDeleting(true)
@@ -778,7 +809,7 @@ const QuestionsAndAnswers = () => {
         }
     }
 
-    const editProduct = (obj) => {
+    const editProduct = useCallback((obj) => {
         setEditId(obj?._id)
         if (obj) {
             setQuestion(obj?.question || '')
@@ -797,7 +828,7 @@ const QuestionsAndAnswers = () => {
             setHiddenOriginalTags([])
             setShowRelatedNotes(false)
         }
-    }
+    }, []);
 
     return (
         <div className="qa-page-container">
@@ -839,31 +870,13 @@ const QuestionsAndAnswers = () => {
                                     </p>
                                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '1rem' }}>
                                         {pdfPages.map((dataUrl, idx) => (
-                                            <div
+                                            <PdfPageCard 
                                                 key={idx}
-                                                onClick={() => togglePdfPageSelection(idx)}
-                                                style={{
-                                                    cursor: 'pointer',
-                                                    border: selectedPdfPages[idx] ? '2px solid #3b82f6' : '2px solid #e2e8f0',
-                                                    borderRadius: '8px',
-                                                    padding: '4px',
-                                                    position: 'relative',
-                                                    opacity: selectedPdfPages[idx] ? 1 : 0.5,
-                                                    transition: 'all 0.2s ease'
-                                                }}
-                                            >
-                                                <img src={dataUrl} alt={`Page ${idx + 1}`} style={{ width: '100%', height: 'auto', display: 'block', borderRadius: '4px' }} />
-                                                <div style={{ position: 'absolute', top: '8px', right: '8px', background: 'white', borderRadius: '50%', padding: '2px', display: 'flex' }}>
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={selectedPdfPages[idx] || false}
-                                                        onChange={() => togglePdfPageSelection(idx)}
-                                                        onClick={(e) => e.stopPropagation()}
-                                                        style={{ cursor: 'pointer', width: '16px', height: '16px' }}
-                                                    />
-                                                </div>
-                                                <div style={{ textAlign: 'center', marginTop: '4px', fontSize: '0.8rem', fontWeight: 600 }}>Page {idx + 1}</div>
-                                            </div>
+                                                idx={idx}
+                                                dataUrl={dataUrl}
+                                                isSelected={selectedPdfPages[idx]}
+                                                onToggle={togglePdfPageSelection}
+                                            />
                                         ))}
                                     </div>
                                 </>

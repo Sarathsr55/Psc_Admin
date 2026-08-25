@@ -1,5 +1,5 @@
 // const BACKEND_BASE_URL = 'http://ec2-18-212-215-28.compute-1.amazonaws.com:5000'
-const BACKEND_BASE_URL = 'https://psc-server.onrender.com'  
+const BACKEND_BASE_URL = 'https://psc-server.onrender.com'
 // const BACKEND_BASE_URL = 'http://localhost:5000'
 
 const BACKEND_API = {
@@ -23,6 +23,14 @@ const BACKEND_API = {
     CHATS: '/chat',
     MESSAGE: '/message',
     DELETECHAT: '/deletechat',
+    COURSE_ALL: '/course/all',
+    COURSE_ADD: '/course/add',
+    COURSE_UPDATE: '/course/update',
+    COURSE_DELETE: '/course/delete',
+    COURSE_ADD_VIDEO: '/course/add-video',
+    COURSE_DELETE_VIDEO: '/course/delete-video',
+    COURSE_ADD_NOTE: '/course/add-note',
+    COURSE_DELETE_NOTE: '/course/delete-note',
     ADDQUESTIONANDANSWER: '/qsans/addqsans',
     GETALLQUESTIONS: '/qsans/allquestionandanswer',
     UPDATEQUESTION: '/qsans/updatequestionandanswer',

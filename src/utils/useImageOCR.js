@@ -151,7 +151,12 @@ function extractQuestionAndOptions(rawText) {
 function parseQuestionsFromText(rawText) {
     if (!rawText?.trim()) return [];
 
-    const lines = rawText.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    // Normalize OCR text before line splitting to ensure each option marker starts on a new line
+    let normalizedText = rawText
+        .replace(/\(8\)/g, '(B)') // Common OCR mistake: (8) instead of (B)
+        .replace(/([^\n])\s+(\([A-Da-d1-4]\)|\[[A-Da-d1-4]\]|[A-Da-d1-4][.)])\s/g, '$1\n$2 '); // Force inline options to new lines
+
+    const lines = normalizedText.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
     const questions = [];
     let currentQ = null;
 
