@@ -27,11 +27,14 @@ const appStart = () => {
   if (admin && token) {
     dispatch({ type: 'ADMIN', payload: admin })
     dispatch({ type: 'TOKEN', payload: token })
-    toast.success()
+    // toast.success() // Removed because it shows a blank toast on every refresh
     navigate('/')
-  }else if(location.pathname === '/delete'){
+  } else if(location.pathname === '/delete'){
     navigate('/delete')
   } else {
+    localStorage.removeItem('admin');
+    localStorage.removeItem('token');
+    dispatch({ type: 'TOKEN', payload: null });
     navigate('/login')
   }
 
@@ -48,6 +51,7 @@ return (
         <Routes>
           <Route exact path='/' element={<Tab/>} />
           <Route exact path='/delete' element={<DeleteAccountModal/>} />
+          <Route path='/login' element={<LoginScreen />} />
         </Routes>
         </div>
         :

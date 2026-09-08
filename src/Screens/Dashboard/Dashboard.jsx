@@ -87,9 +87,9 @@ const Dashboard = () => {
         fetchData()
     }, [])
 
-    if (isLoading) {
-        return <div className="loading-container">Loading Dashboard...</div>
-    }
+    // if (isLoading) {
+    //     return <div className="loading-container">Loading Dashboard...</div>
+    // }
 
     // Use activeUsers from stats or default to 0
     const activeUsers = stats.activeUsers || 0;
@@ -127,7 +127,7 @@ const Dashboard = () => {
                         </div>
                         <div className="box-bottom">
                             <h4>Total Users</h4>
-                            <h5>{formatNumber(stats.totalUsers)}</h5>
+                            <h5 className={isLoading ? "skeleton skeleton-text" : ""}>{isLoading ? "0000" : formatNumber(stats.totalUsers)}</h5>
                         </div>
                     </div>
 
@@ -141,7 +141,7 @@ const Dashboard = () => {
                         </div>
                         <div className="box-bottom">
                             <h4>Active Users</h4>
-                            <h5>{activeUsers}</h5>
+                            <h5 className={isLoading ? "skeleton skeleton-text" : ""}>{isLoading ? "0000" : activeUsers}</h5>
                         </div>
                     </div>
 
@@ -155,7 +155,7 @@ const Dashboard = () => {
                         </div>
                         <div className="box-bottom">
                             <h4>Total Questions</h4>
-                            <h5>{totalQuestions}</h5>
+                            <h5 className={isLoading ? "skeleton skeleton-text" : ""}>{isLoading ? "0000" : totalQuestions}</h5>
                         </div>
                     </div>
 
@@ -169,7 +169,7 @@ const Dashboard = () => {
                         </div>
                         <div className="box-bottom">
                             <h4>Subjects</h4>
-                            <h5>{uniqueSubjects}</h5>
+                            <h5 className={isLoading ? "skeleton skeleton-text" : ""}>{isLoading ? "00" : uniqueSubjects}</h5>
                         </div>
                     </div>
                 </div>
@@ -195,7 +195,15 @@ const Dashboard = () => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {stats.topUsers && stats.topUsers.length > 0 ? (
+                                    {isLoading ? (
+                                        <tr>
+                                            <td colSpan="4" style={{ textAlign: 'center', padding: '2rem' }}>
+                                                <div className="skeleton skeleton-chart" style={{ height: '40px', marginBottom: '10px' }}></div>
+                                                <div className="skeleton skeleton-chart" style={{ height: '40px', marginBottom: '10px' }}></div>
+                                                <div className="skeleton skeleton-chart" style={{ height: '40px' }}></div>
+                                            </td>
+                                        </tr>
+                                    ) : stats.topUsers && stats.topUsers.length > 0 ? (
                                         stats.topUsers.map((user, index) => {
                                             // Determine initials
                                             const initials = user.username 
@@ -247,28 +255,34 @@ const Dashboard = () => {
                             <h4>Subject Distribution</h4>
                         </div>
                         <div className="chart-container">
-                            <div className="donut-wrapper">
-                                <PieChart
-                                    data={categoryData}
-                                    lineWidth={25}
-                                    paddingAngle={3}
-                                    rounded
-                                    startAngle={-90}
-                                />
-                                <div className="donut-center">
-                                    <span className="donut-number">{uniqueSubjects}</span>
-                                    <span className="donut-label">SUBJECTS</span>
-                                </div>
-                            </div>
-                            <div className="chart-legend">
-                                {categoryData.map((item, index) => (
-                                    <div key={index} className="legend-item">
-                                        <div className="legend-color" style={{ backgroundColor: item.color }}></div>
-                                        <span className="legend-title">{item.title}</span>
-                                        <span className="legend-percent">{Math.round((item.value / totalQuestions) * 100)}%</span>
+                            {isLoading ? (
+                                <div className="skeleton skeleton-chart" style={{ height: '200px', width: '200px', margin: '0 auto', borderRadius: '50%' }}></div>
+                            ) : (
+                                <>
+                                    <div className="donut-wrapper">
+                                        <PieChart
+                                            data={categoryData}
+                                            lineWidth={25}
+                                            paddingAngle={3}
+                                            rounded
+                                            startAngle={-90}
+                                        />
+                                        <div className="donut-center">
+                                            <span className="donut-number">{uniqueSubjects}</span>
+                                            <span className="donut-label">SUBJECTS</span>
+                                        </div>
                                     </div>
-                                ))}
-                            </div>
+                                    <div className="chart-legend">
+                                        {categoryData.map((item, index) => (
+                                            <div key={index} className="legend-item">
+                                                <div className="legend-color" style={{ backgroundColor: item.color }}></div>
+                                                <span className="legend-title">{item.title}</span>
+                                                <span className="legend-percent">{totalQuestions > 0 ? Math.round((item.value / totalQuestions) * 100) : 0}%</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </>
+                            )}
                         </div>
                     </div>
                 </div>

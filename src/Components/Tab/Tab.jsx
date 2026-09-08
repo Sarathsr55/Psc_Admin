@@ -4,7 +4,7 @@ import { AdminContext } from '../../App'
 import './Tab.css'
 import Seperator from '../Seperator'
 import { IonIcon } from '@ionic/react'
-import { logoSlack, chatbubblesOutline, helpCircleOutline, documentTextOutline, timeOutline, settingsOutline, peopleOutline, receiptOutline, listOutline } from 'ionicons/icons'
+import { logoSlack, chatbubblesOutline, helpCircleOutline, documentTextOutline, timeOutline, settingsOutline, peopleOutline, receiptOutline, listOutline, notificationsOutline } from 'ionicons/icons'
 import images from '../../constants/images'
 import Dashboard from '../../Screens/Dashboard/Dashboard'
 import QuestionsAndAnswers from '../../Screens/Products/QuestionsAndAnswers'
@@ -14,6 +14,7 @@ import UserActivityLogs from '../../Screens/Logs/UserActivityLogs'
 import PaymentLogs from '../../Screens/Logs/PaymentLogs'
 import StudyMaterials from '../../Screens/Products/StudyMaterials'
 import ContentManagement from '../../Screens/ContentManagement/ContentManagement'
+import PushNotifications from '../../Screens/Notifications/PushNotifications'
 
 
 const Tab = () => {
@@ -60,10 +61,6 @@ const Tab = () => {
                     <IonIcon icon={receiptOutline} />
                     <h6>Payment Logs</h6>
                 </div>
-                <div className={tabno === 7 ? 'settings-panel row active' : 'settings-panel row'} onClick={() => tabState(7)}>
-                    <IonIcon icon={settingsOutline} />
-                    <h6>Settings</h6>
-                </div>
                 <div className={tabno === 8 ? 'studymaterials-panel row active' : 'studymaterials-panel row'} onClick={() => tabState(8)}>
                     <IonIcon icon={documentTextOutline} />
                     <h6>Study Materials</h6>
@@ -71,6 +68,14 @@ const Tab = () => {
                 <div className={tabno === 9 ? 'content-panel row active' : 'content-panel row'} onClick={() => tabState(9)}>
                     <IonIcon icon={listOutline} />
                     <h6>Content Management</h6>
+                </div>
+                <div className={tabno === 10 ? 'settings-panel row active' : 'settings-panel row'} onClick={() => tabState(10)}>
+                    <IonIcon icon={notificationsOutline} />
+                    <h6>Push Notifications</h6>
+                </div>
+                <div className={tabno === 7 ? 'settings-panel row active' : 'settings-panel row'} onClick={() => tabState(7)}>
+                    <IonIcon icon={settingsOutline} />
+                    <h6>Settings</h6>
                 </div>
 
             </div>
@@ -93,14 +98,17 @@ const Tab = () => {
                 <div className={tabno === 6 ?'active-tab':'tab'} >
                     <PaymentLogs/>
                 </div>
-                <div className={tabno === 7 ?'active-tab':'tab'} >
-                    
-                </div>
                 <div className={tabno === 8 ?'active-tab':'tab'} >
                     <StudyMaterials/>
                 </div>
                 <div className={tabno === 9 ?'active-tab':'tab'} >
                     <ContentManagement/>
+                </div>
+                <div className={tabno === 10 ?'active-tab':'tab'} >
+                    <PushNotifications/>
+                </div>
+                <div className={tabno === 7 ?'active-tab':'tab'} >
+                    
                 </div>
 
             </div>

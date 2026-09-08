@@ -27,7 +27,7 @@ const administrationLogin = async(admin)=>{
 const userDelete = async(admin)=>{
     console.log(admin);
     
-    let deleteResponse = await AuthRequest.delete('https://gizmo-server-qeax.onrender.com/auth/delete',{data:admin})
+    let deleteResponse = await AuthRequest.delete(ApiConstants.BACKEND_API.DELETE_USER, { data: admin })
     console.log(deleteResponse?.data);
     
     return deleteResponse?.data
