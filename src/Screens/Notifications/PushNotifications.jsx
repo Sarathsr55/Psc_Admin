@@ -117,15 +117,20 @@ const PushNotifications = () => {
                     </div>
 
                     <div style={{ marginBottom: '15px' }}>
-                        <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Redirect Link (Optional)</label>
-                        <input 
-                            type="text" 
+                        <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Target Screen / Tab (Optional)</label>
+                        <select 
                             className="form-control" 
-                            placeholder="app://course/123 or https://youtube.com/..."
                             value={link}
                             onChange={(e) => setLink(e.target.value)}
-                        />
-                        <small style={{ color: '#888' }}>Deep link to redirect users when they tap this notification.</small>
+                        >
+                            <option value="">None (No redirect)</option>
+                            <option value="home">Home / Dashboard</option>
+                            <option value="courses">Courses Library</option>
+                            <option value="practice">Practice Area</option>
+                            <option value="tests">Mock Tests</option>
+                            <option value="notes">Explore / Notes</option>
+                        </select>
+                        <small style={{ color: '#888' }}>Select where the user should be redirected when they tap the notification.</small>
                     </div>
 
                     <div style={{ marginBottom: '20px' }}>
