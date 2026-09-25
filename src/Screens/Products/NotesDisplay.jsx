@@ -11,42 +11,81 @@ export default function NotesDisplay({ data }) {
 
     const renderBlock = (block, index) => {
         switch (block.type) {
-            case 'heading':
-                return <h3 key={block.id || index} className="notes-display-heading">{block.content}</h3>;
+            case 'heading': {
+                const HeadingTag = block.size || 'h3';
+                return <HeadingTag key={block.id || index} className={`notes-display-heading heading-size-${block.size || 'h3'}`}>{block.content}</HeadingTag>;
+            }
             case 'description':
                 return <p key={block.id || index} className="notes-display-description" style={{ whiteSpace: 'pre-wrap' }} dangerouslySetInnerHTML={{ __html: block.content || '' }} />;
-            case 'key-value':
+            case 'key-value': {
+                let values = block.content?.values || [];
+                if (values.length === 0 && block.content?.value) {
+                    values = block.content.value.split('\n').filter(l => l.trim() !== '').map(l => ({ text: l, image: '' }));
+                }
                 return (
-                    <div key={block.id || index} className="notes-display-subheading-item" style={{ marginBottom: '4px' }}>
-                        <span style={{ color: '#3b82f6', marginRight: '8px' }}>➔</span>
-                        <span className="notes-subheading-key" style={{ display: 'inline' }}>{block.content?.key}</span>
-                        <span style={{ fontWeight: 700, margin: '0 8px' }}>-</span>
-                        <span className="notes-subheading-value" style={{ display: 'inline', whiteSpace: 'pre-wrap' }} dangerouslySetInnerHTML={{ __html: block.content?.value || '' }} />
+                    <div key={block.id || index} className="notes-display-subheading-item" style={{ position: 'relative', display: 'block', marginBottom: '8px', width: '100%', overflow: 'hidden' }}>
+                        {block.content?.image && (
+                            <img 
+                                src={block.content.image} 
+                                alt="" 
+                                style={{ 
+                                    maxWidth: '50%', maxHeight: '300px', objectFit: 'contain', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                                    float: block.content.imageAlign === 'left' ? 'left' : (block.content.imageAlign === 'right' ? 'right' : 'none'),
+                                    margin: block.content.imageAlign === 'left' ? '0 12px 4px 0' : (block.content.imageAlign === 'right' ? '0 0 4px 12px' : '0 auto 12px auto'),
+                                    display: (!block.content.imageAlign || block.content.imageAlign === 'center') ? 'block' : 'inline-block'
+                                }} 
+                            />
+                        )}
+                        
+                        <div style={{ display: 'inline', marginBottom: '4px' }}>
+                            <span style={{ fontWeight: 700, marginRight: '8px', color: '#475569' }}>-&gt;</span>
+                            <span className="notes-subheading-key" style={{ display: 'inline' }}>{block.content?.key}</span>
+                        </div>
+                        
+                        <div style={{ display: 'block', marginTop: '4px' }}>
+                            {values.length > 0 ? values.map((v, i) => (
+                                <div key={i} style={{ marginBottom: '8px' }}>
+                                    {v.text && <div className="notes-subheading-value" dangerouslySetInnerHTML={{ __html: v.text || '' }} />}
+                                    {v.image && <img src={v.image} alt="" style={{ maxWidth: '100%', marginTop: '4px', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }} />}
+                                </div>
+                            )) : (
+                                <span className="notes-subheading-value" dangerouslySetInnerHTML={{ __html: block.content?.value || '' }} />
+                            )}
+                        </div>
                     </div>
                 );
+            }
             case 'point':
                 return (
-                    <div key={block.id || index} style={{ marginBottom: '4px', display: 'flex', alignItems: 'baseline', gap: '0' }}>
-                        <span style={{ color: '#3b82f6', marginRight: '8px', flexShrink: 0 }}>➔</span>
+                    <div key={block.id || index} style={{ marginBottom: '8px' }}>
+                        <span style={{ color: '#3b82f6', marginRight: '8px' }}>➔</span>
                         <span dangerouslySetInnerHTML={{ __html: block.content || '' }} />
                     </div>
                 );
-            case 'image':
+            case 'image': {
                 if (!block.content?.url) return null;
+                const align = block.content?.align || 'center';
+                let imgWrapperStyle = { margin: '12px 0', clear: 'both', textAlign: align };
+                if (align === 'float-left') {
+                    imgWrapperStyle = { float: 'left', margin: '0 12px 12px 0', width: block.content.width || 'max-content' };
+                } else if (align === 'float-right') {
+                    imgWrapperStyle = { float: 'right', margin: '0 0 12px 12px', width: block.content.width || 'max-content' };
+                }
                 return (
-                    <div key={block.id || index} style={{ textAlign: block.content?.align || 'center', margin: '12px 0' }}>
+                    <div key={block.id || index} style={imgWrapperStyle}>
                         <img
                             src={block.content.url}
                             alt=""
                             style={{
                                 maxWidth: '100%',
-                                width: block.content.width || 'auto',
+                                width: (align === 'float-left' || align === 'float-right') ? '100%' : (block.content.width || 'auto'),
                                 borderRadius: '8px',
                                 boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
                             }}
                         />
                     </div>
                 );
+            }
             case 'review':
                 return (
                     <div key={block.id || index} style={{ marginTop: '12px', padding: '10px 14px', background: '#fffbeb', borderRadius: '8px', border: '1px solid #fef3c7' }}>
@@ -93,12 +132,44 @@ export default function NotesDisplay({ data }) {
 
             {data?.subheading && data.subheading.length > 0 && (
                 <div className="notes-subheadings-section">
-                    {data.subheading.map((obj, index) => (
-                        <div key={index} className="notes-display-subheading-item">
-                            <div className="notes-subheading-key">{obj?.key}</div>
-                            <div className="notes-subheading-value" style={{ whiteSpace: 'pre-wrap' }}>{obj?.value}</div>
-                        </div>
-                    ))}
+                    {data.subheading.map((obj, index) => {
+                        let legacyValues = obj.values || [];
+                        if (legacyValues.length === 0 && obj.value) {
+                             legacyValues = obj.value.split('\n').filter(l => l.trim() !== '').map(l => ({ text: l, image: '' }));
+                        }
+                        return (
+                            <div key={index} className="notes-display-subheading-item" style={{ position: 'relative', display: 'block', marginBottom: '8px', width: '100%', overflow: 'hidden' }}>
+                                {obj?.image && (
+                                    <img 
+                                        src={obj.image} 
+                                        alt="" 
+                                        style={{ 
+                                            maxWidth: '50%', maxHeight: '300px', objectFit: 'contain', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                                            float: obj.imageAlign === 'left' ? 'left' : (obj.imageAlign === 'right' ? 'right' : 'none'),
+                                            margin: obj.imageAlign === 'left' ? '0 12px 4px 0' : (obj.imageAlign === 'right' ? '0 0 4px 12px' : '0 auto 12px auto'),
+                                            display: (!obj.imageAlign || obj.imageAlign === 'center') ? 'block' : 'inline-block'
+                                        }} 
+                                    />
+                                )}
+                                
+                                <div style={{ display: 'inline', marginBottom: '4px' }}>
+                                    <span style={{ fontWeight: 700, marginRight: '8px', color: '#475569' }}>-&gt;</span>
+                                    <span className="notes-subheading-key" style={{ display: 'inline' }}>{obj?.key}</span>
+                                </div>
+                                
+                                <div style={{ display: 'block', marginTop: '4px' }}>
+                                    {legacyValues.length > 0 ? legacyValues.map((v, i) => (
+                                        <div key={i} style={{ marginBottom: '8px' }}>
+                                            {v.text && <div className="notes-subheading-value" style={{ whiteSpace: 'pre-wrap' }} dangerouslySetInnerHTML={{ __html: v.text || '' }} />}
+                                            {v.image && <img src={v.image} alt="" style={{ maxWidth: '100%', marginTop: '4px', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }} />}
+                                        </div>
+                                    )) : (
+                                        <div className="notes-subheading-value" style={{ whiteSpace: 'pre-wrap' }} dangerouslySetInnerHTML={{ __html: obj?.value || '' }} />
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })}
                 </div>
             )}
 

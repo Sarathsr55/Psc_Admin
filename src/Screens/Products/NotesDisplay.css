@@ -54,13 +54,19 @@
 
 .notes-display-heading {
     margin: 1rem 0 0.5rem 0;
-    font-size: 1rem;
     font-weight: 700;
     color: var(--notes-primary);
 }
 
+.heading-size-h1 { font-size: 1.8rem; margin: 1.2rem 0 0.6rem 0; }
+.heading-size-h2 { font-size: 1.5rem; margin: 1.1rem 0 0.5rem 0; }
+.heading-size-h3 { font-size: 1.25rem; margin: 1rem 0 0.5rem 0; }
+.heading-size-h4 { font-size: 1.1rem; margin: 0.8rem 0 0.4rem 0; }
+.heading-size-h5 { font-size: 1rem; margin: 0.6rem 0 0.2rem 0; }
+.heading-size-h6 { font-size: 0.9rem; margin: 0.5rem 0 0.1rem 0; }
+
 .notes-display-description {
-    margin: 0;
+    margin: 0 0 0 16px;
     font-size: 0.95rem;
     line-height: 1.6;
     color: var(--notes-text-main);
@@ -69,10 +75,8 @@
 
 .notes-display-subheading-item {
     margin-top: 1rem;
-    background: #f8fafc;
-    padding: 0.75rem;
-    border-radius: 8px;
-    border-left: 3px solid #cbd5e1;
+    margin-left: 16px;
+    margin-bottom: 8px;
 }
 
 .notes-subheading-key {
@@ -91,6 +95,7 @@
 
 .notes-points-section {
     margin-top: 1.25rem;
+    margin-left: 16px;
 }
 
 .notes-points-title {

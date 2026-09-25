@@ -1,9 +1,5 @@
-import axios from "axios"
-import ApiConstants from '../constants/ApiConstants'
-
-const AuthRequest = axios.create({
-    baseURL: ApiConstants.BACKEND_API.BASE_API_URL
-})
+import ApiConstants from '../constants/ApiConstants';
+import AuthRequest from './AxiosInstance';
 const token = localStorage.getItem('token')
 
 const addQuestion = async (token, qa) => {
@@ -92,3 +88,4 @@ const fetchInternetOptions = async (question, answer) => {
 }
 
 export { addQuestion, getAllQuestions, updateQuestion, deleteQuestion, fetchInternetOptions }
+

@@ -1,9 +1,4 @@
-import axios from "axios"
-import ApiConstants from '../constants/ApiConstants'
-
-const AuthRequest = axios.create({
-    baseURL: ApiConstants.BACKEND_API.BASE_API_URL
-})
+import AuthRequest from './AxiosInstance';
 const token = localStorage.getItem('token')
 
 const addFolder = async (folder) => {
@@ -33,3 +28,4 @@ const deleteFolder = async (folder) => {
 }
 
 export { addFolder, getAllFolders, updateFolder, deleteFolder }
+

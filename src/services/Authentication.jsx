@@ -1,9 +1,5 @@
-import axios from "axios"
-import ApiConstants from '../constants/ApiConstants'
-
-const AuthRequest = axios.create({
-    baseURL: ApiConstants.BACKEND_API.BASE_API_URL
-})
+import ApiConstants from '../constants/ApiConstants';
+import AuthRequest from './AxiosInstance';
 
 const administrationLogin = async(admin)=>{
     if(!admin?.email || !admin?.password){
@@ -34,3 +30,4 @@ const userDelete = async(admin)=>{
 }
 
 export  {administrationLogin,userDelete}
+

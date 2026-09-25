@@ -1,9 +1,5 @@
-import axios from "axios"
-import ApiConstants from '../constants/ApiConstants'
-
-const AuthRequest = axios.create({
-    baseURL: ApiConstants.BACKEND_API.BASE_API_URL
-})
+import ApiConstants from '../constants/ApiConstants';
+import AuthRequest from './AxiosInstance';
 
 let token = localStorage.getItem('token')
 
@@ -76,3 +72,4 @@ const deleteOrder = async(order)=>{
 }
 
 export {addOrder,getAllOrders,updateOrder,deleteOrder}
+

@@ -1,9 +1,4 @@
-import axios from "axios"
-import ApiConstants from '../constants/ApiConstants'
-
-const AuthRequest = axios.create({
-    baseURL: ApiConstants.BACKEND_API.BASE_API_URL
-})
+import AuthRequest from './AxiosInstance';
 
 AuthRequest.interceptors.request.use(config => {
     const token = localStorage.getItem('token')
@@ -18,8 +13,36 @@ const sendNotification = async (payload) => {
         let response = await AuthRequest.post('/notifications/create', payload)
         return response?.data
     } catch (error) {
-        return { error: error?.message || 'Failed to send notification' }
+        return { error: error?.response?.data?.msg || error?.message || 'Failed to send notification' }
     }
 }
 
-export { sendNotification }
+const getAllNotifications = async () => {
+    try {
+        let response = await AuthRequest.get('/notifications/all')
+        return response?.data
+    } catch (error) {
+        return { error: error?.response?.data?.msg || error?.message || 'Failed to fetch notifications' }
+    }
+}
+
+const updateNotification = async (id, payload) => {
+    try {
+        let response = await AuthRequest.put(`/notifications/update/${id}`, payload)
+        return response?.data
+    } catch (error) {
+        return { error: error?.response?.data?.msg || error?.message || 'Failed to update notification' }
+    }
+}
+
+const deleteNotification = async (id) => {
+    try {
+        let response = await AuthRequest.delete(`/notifications/delete/${id}`)
+        return response?.data
+    } catch (error) {
+        return { error: error?.response?.data?.msg || error?.message || 'Failed to delete notification' }
+    }
+}
+
+export { sendNotification, getAllNotifications, updateNotification, deleteNotification }
+

@@ -55,15 +55,20 @@ const MlInput = ({ value, onChange, placeholder, inputRef, className, style, onK
         <ReactTransliterate
             value={value || ''}
             onChangeText={onChange}
-                lang="ml"
-                enabled={mlEnabled}
-                renderComponent={(props) => {
+            lang="ml"
+            enabled={mlEnabled}
+            containerStyle={{ width: '100%', flex: style?.flex || 1, display: 'flex' }}
+            containerClassName="ml-input-container"
+            renderComponent={(props) => {
                     const mergedProps = {
                         ...props,
                         ref: (el) => {
                             if (typeof props.ref === 'function') props.ref(el);
                             else if (props.ref) props.ref.current = el;
-                            if (inputRef) inputRef.current = el;
+                            
+                            if (typeof inputRef === 'function') inputRef(el);
+                            else if (inputRef) inputRef.current = el;
+                            
                             internalRef.current = el;
                         },
                         className: className || '',
@@ -100,9 +105,12 @@ const MlInput = ({ value, onChange, placeholder, inputRef, className, style, onK
 
 // ── Block Components ─────────────────────────────────────────────
 
-const HeadingBlock = ({ block, onUpdate, onKeyDown, mlEnabled }) => {
+const HeadingBlock = ({ block, onUpdate, onUpdateField, onKeyDown, mlEnabled }) => {
+    const size = block.size || 'h3';
     return (
-        <div className="nbe-heading-block">
+        <div className="nbe-heading-block" style={{
+            fontSize: size === 'h1' ? '2.5em' : size === 'h2' ? '2em' : size === 'h3' ? '1.5em' : size === 'h4' ? '1.2em' : size === 'h5' ? '1em' : '0.8em',
+        }}>
             <MlInput
                 value={block.content || ''}
                 onChange={(val) => onUpdate(block.id, val)}
@@ -120,7 +128,11 @@ const HeadingBlock = ({ block, onUpdate, onKeyDown, mlEnabled }) => {
                 mlEnabled={mlEnabled}
                 multiLine={true}
                 placeholder="Heading..."
-                className="nbe-block-input"
+                className={`nbe-block-input heading-input-${size}`}
+                style={{
+                    fontWeight: 'bold',
+                    marginTop: 0
+                }}
             />
         </div>
     );
@@ -152,84 +164,222 @@ const DescriptionBlock = ({ block, onUpdate, onKeyDown, mlEnabled }) => {
     );
 };
 
-const KVBlock = ({ block, onUpdate, onKeyDown, mlEnabled, toggleVoice, listeningBlockId }) => {
-    const content = block.content || {};
-    const combinedText = content.rawText !== undefined 
-        ? content.rawText 
-        : ((content.key || '') + (content.value ? ' - ' + content.value : ''));
+const KVBlock = ({ block, onUpdate, onKeyDown, mlEnabled, toggleVoice, listeningBlockId, onDelete }) => {
+    const content = block.content || { key: '', values: [] };
+    let values = content.values || [];
+    if (values.length === 0 && content.value) {
+        values = content.value.split('\n').filter(l => l.trim() !== '').map(l => ({ text: l, image: '' }));
+    }
 
-    const handleChange = (val) => {
-        onUpdate(block.id, { ...content, rawText: val });
+    const [isEditing, setIsEditing] = useState(!content.key && values.length === 0);
+    const [isHovered, setIsHovered] = useState(false);
+    const valueRefs = useRef([]);
+
+    const handleKeyChange = (val) => {
+        onUpdate(block.id, { ...content, key: val });
     };
 
-    const renderFormattedText = (text) => {
-        if (!text) return <span style={{ color: '#cbd5e1' }}>Key - Value</span>;
-        const idx = text.indexOf('-');
-        if (idx !== -1) {
-            return (
-                <>
-                    <span style={{ color: 'inherit' }}>{text.substring(0, idx + 1)}</span>
-                    <span style={{ color: '#16a34a', fontWeight: 500 }}>{text.substring(idx + 1)}</span>
-                </>
-            );
+    const addValue = () => {
+        onUpdate(block.id, { ...content, values: [...values, { text: '', image: '' }] });
+    };
+
+    const handleKeyEnter = (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            addValue();
+            setTimeout(() => {
+                const newIndex = values.length;
+                if (valueRefs.current[newIndex]) {
+                    valueRefs.current[newIndex].focus();
+                }
+            }, 50);
         }
-        return <span style={{ color: 'inherit' }}>{text}</span>;
     };
+
+    const updateText = (index, val) => {
+        const newValues = [...values];
+        newValues[index] = { ...newValues[index], text: val };
+        onUpdate(block.id, { ...content, values: newValues });
+    };
+
+    const updateImage = (index, e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const localUrl = URL.createObjectURL(file);
+        const newValues = [...values];
+        newValues[index] = { ...newValues[index], image: localUrl, rawFile: file };
+        onUpdate(block.id, { ...content, values: newValues });
+        e.target.value = '';
+    };
+
+    const removeImage = (index) => {
+        const newValues = [...values];
+        newValues[index] = { ...newValues[index], image: '', rawFile: null };
+        onUpdate(block.id, { ...content, values: newValues });
+    };
+
+    const removeValue = (index) => {
+        const newValues = values.filter((_, i) => i !== index);
+        onUpdate(block.id, { ...content, values: newValues });
+    };
+
+    const updateKeyImage = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const localUrl = URL.createObjectURL(file);
+        onUpdate(block.id, { ...content, image: localUrl, rawFile: file });
+        e.target.value = '';
+    };
+
+    const removeKeyImage = () => {
+        onUpdate(block.id, { ...content, image: '', rawFile: null });
+    };
+
+    if (!isEditing) {
+        return (
+            <div 
+                onMouseEnter={() => setIsHovered(true)}
+                onMouseLeave={() => setIsHovered(false)}
+                style={{ position: 'relative', display: 'block', padding: '10px 16px', backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', width: '100%', marginBottom: '4px', overflow: 'hidden' }}
+            >
+                {content.image && (
+                    <img 
+                        src={content.image} 
+                        alt="" 
+                        style={{ 
+                            maxWidth: '50%', maxHeight: '300px', objectFit: 'contain', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                            float: content.imageAlign === 'left' ? 'left' : (content.imageAlign === 'right' ? 'right' : 'none'),
+                            margin: content.imageAlign === 'left' ? '0 12px 4px 0' : (content.imageAlign === 'right' ? '0 0 4px 12px' : '0 auto 12px auto'),
+                            display: (!content.imageAlign || content.imageAlign === 'center') ? 'block' : 'inline-block'
+                        }} 
+                    />
+                )}
+                
+                <div style={{ display: 'inline', marginBottom: '4px' }}>
+                    <span style={{ fontWeight: 700, marginRight: '8px', color: '#475569' }}>-&gt;</span>
+                    <span className="notes-subheading-key" style={{ display: 'inline', fontWeight: 600, color: '#1e293b' }}>{content.key}</span>
+                </div>
+
+                <div style={{ display: 'block', marginTop: '4px' }}>
+                    {values.length > 0 ? values.map((v, i) => (
+                        <div key={i} style={{ marginBottom: '8px' }}>
+                            {v.text && <div className="notes-subheading-value" style={{ color: '#475569', lineHeight: '1.6' }} dangerouslySetInnerHTML={{ __html: v.text || '' }} />}
+                            {v.image && <img src={v.image} alt="" style={{ maxWidth: '100%', maxHeight: '300px', objectFit: 'contain', marginTop: '8px', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }} />}
+                        </div>
+                    )) : null}
+                </div>
+                
+                {isHovered && (
+                    <div style={{ position: 'absolute', top: '8px', right: '8px', display: 'flex', gap: '6px' }}>
+                        <button onClick={() => setIsEditing(true)} style={{ padding: '6px 12px', background: '#e0e7ff', color: '#4338ca', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600, display: 'flex', alignItems: 'center' }}>
+                            Edit
+                        </button>
+                        <button onClick={onDelete} style={{ padding: '6px 12px', background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600, display: 'flex', alignItems: 'center' }}>
+                            Delete
+                        </button>
+                    </div>
+                )}
+            </div>
+        );
+    }
 
     return (
-        <div className="nbe-kv-block" style={{ position: 'relative' }}>
-            <div className="nbe-kv-key-group" style={{ flex: '1 1 auto', width: '100%' }}>
-                <span className="nbe-kv-arrow">➔</span>
-                <div className="nbe-kv-key" style={{ position: 'relative', width: '100%' }}>
-                    {/* Background div rendering colored text to overlay behind the transparent textarea */}
-                    <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', minHeight: '1.6em', padding: 0, font: 'inherit', pointerEvents: 'none' }}>
-                        {renderFormattedText(combinedText)}
+        <div className="nbe-kv-block" style={{ display: 'block', padding: '10px', backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', width: '100%', marginBottom: '4px', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', marginBottom: '10px' }}>
+                <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Editing Block</span>
+                <button onClick={() => setIsEditing(false)} style={{ padding: '4px 12px', background: '#ecfccb', color: '#4d7c0f', border: '1px solid #bef264', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}>
+                    Done
+                </button>
+            </div>
+            
+            <div style={{ 
+                float: (content.image && content.imageAlign === 'left') ? 'left' : ((content.image && content.imageAlign === 'right') ? 'right' : 'none'),
+                margin: (content.image && content.imageAlign === 'left') ? '0 12px 12px 0' : ((content.image && content.imageAlign === 'right') ? '0 0 12px 12px' : '0 auto 12px auto'),
+                maxWidth: (!content.image || !content.imageAlign || content.imageAlign === 'center') ? '100%' : '40%',
+                display: (!content.image || !content.imageAlign || content.imageAlign === 'center') ? 'block' : 'inline-block'
+            }}>
+                {content.image ? (
+                    <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                        <img src={content.image} alt="Key Image" style={{ maxWidth: '100%', maxHeight: '180px', objectFit: 'contain', borderRadius: '6px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }} />
+                        <button onClick={removeKeyImage} style={{ position: 'absolute', top: '4px', right: '4px', background: '#ef4444', color: '#fff', border: 'none', borderRadius: '50%', width: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,0.2)' }}>
+                            <IonIcon icon={trashOutline} style={{ fontSize: '12px' }} />
+                        </button>
+                        <div style={{ display: 'flex', gap: '4px', marginTop: '6px' }}>
+                            <button onClick={() => onUpdate(block.id, { ...content, imageAlign: 'left' })} style={{ fontSize: '0.7rem', padding: '2px 6px', background: content.imageAlign === 'left' ? '#e2e8f0' : '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer' }}>Left</button>
+                            <button onClick={() => onUpdate(block.id, { ...content, imageAlign: 'center' })} style={{ fontSize: '0.7rem', padding: '2px 6px', background: (!content.imageAlign || content.imageAlign === 'center') ? '#e2e8f0' : '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer' }}>Center</button>
+                            <button onClick={() => onUpdate(block.id, { ...content, imageAlign: 'right' })} style={{ fontSize: '0.7rem', padding: '2px 6px', background: content.imageAlign === 'right' ? '#e2e8f0' : '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer' }}>Right</button>
+                        </div>
                     </div>
-                    <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }} className="nbe-ml-input-wrapper-full">
-                        <MlInput
-                            value={combinedText}
-                            onChange={handleChange}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Tab') {
-                                    e.preventDefault();
-                                    const val = e.currentTarget.value;
-                                    const cursor = e.currentTarget.selectionStart;
-                                    const hyphenIdx = val.indexOf('-');
-                                    
-                                    if (hyphenIdx === -1) {
-                                        const newVal = val.slice(0, cursor) + ' - ' + val.slice(cursor);
-                                        onUpdate(block.id, { ...content, rawText: newVal });
-                                        setTimeout(() => {
-                                            if (e.target) {
-                                                e.target.selectionStart = cursor + 3;
-                                                e.target.selectionEnd = cursor + 3;
-                                            }
-                                        }, 0);
-                                    } else if (cursor <= hyphenIdx) {
-                                        setTimeout(() => {
-                                            if (e.target) {
-                                                e.target.selectionStart = hyphenIdx + 2;
-                                                e.target.selectionEnd = hyphenIdx + 2;
-                                            }
-                                        }, 0);
-                                    }
-                                }
-                                if (e.key === 'Enter' && !e.shiftKey) {
-                                    const val = e.currentTarget.value;
-                                    const cursor = e.currentTarget.selectionStart;
-                                    if (cursor > 0 && val[cursor - 1] === '\n') {
+                ) : (
+                    <label style={{ fontSize: '0.75rem', padding: '4px 8px', background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0', borderRadius: '6px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px', marginBottom: '8px' }}>
+                        <IonIcon icon={imageOutline} /> Attach Top Image
+                        <input type="file" accept="image/*" onChange={updateKeyImage} style={{ display: 'none' }} />
+                    </label>
+                )}
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '8px', overflow: 'hidden' }}>
+                <span style={{ fontWeight: 'bold', color: '#6366f1', marginTop: '6px', fontSize: '1.1rem' }}>-&gt;</span>
+                <MlInput
+                    value={content.key || ''}
+                    onChange={handleKeyChange}
+                    onKeyDown={handleKeyEnter}
+                    mlEnabled={mlEnabled}
+                    multiLine={true}
+                    placeholder="Enter Key sentence..."
+                    className="nbe-block-input"
+                    style={{ flex: 1, padding: '4px 6px', borderRadius: '6px', border: '1px solid #d1d5db', minHeight: '24px', backgroundColor: '#f9fafb', fontSize: '0.95rem' }}
+                />
+            </div>
+            
+            <div style={{ display: 'block', marginTop: '4px' }}>
+                {values.map((v, index) => (
+                    <div key={index} style={{ display: 'flex', alignItems: 'flex-start', gap: '4px', flexDirection: 'column', backgroundColor: '#ffffff', padding: '6px', borderRadius: '6px', border: '1px solid #f3f4f6' }}>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', width: '100%' }}>
+                            <MlInput
+                                value={v.text || ''}
+                                onChange={(val) => updateText(index, val)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && !e.shiftKey) {
                                         e.preventDefault();
-                                        onUpdate(block.id, { ...content, rawText: val.slice(0, cursor - 1) + val.slice(cursor) });
-                                        onKeyDown(block.id, 'key-value');
+                                        addValue();
+                                        setTimeout(() => {
+                                            const newIndex = values.length;
+                                            if (valueRefs.current[newIndex]) valueRefs.current[newIndex].focus();
+                                        }, 50);
                                     }
-                                }
-                            }}
-                            mlEnabled={mlEnabled}
-                            multiLine={true}
-                            placeholder=""
-                            className="nbe-block-input nbe-transparent-input"
-                        />
+                                }}
+                                inputRef={(el) => (valueRefs.current[index] = el)}
+                                mlEnabled={mlEnabled}
+                                multiLine={true}
+                                placeholder="Enter Text Value..."
+                                className="nbe-block-input"
+                                style={{ flex: 1, width: '100%', padding: '4px 6px', borderRadius: '6px', border: '1px solid #e5e7eb', minHeight: '24px', backgroundColor: '#ffffff', fontSize: '0.95rem' }}
+                            />
+                            <button onClick={() => removeValue(index)} style={{ padding: '6px', color: '#ef4444', background: '#fee2e2', border: 'none', cursor: 'pointer', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <IonIcon icon={trashOutline} />
+                            </button>
+                        </div>
+                        {v.image ? (
+                            <div style={{ position: 'relative', marginTop: '2px' }}>
+                                <img src={v.image} alt="Value" style={{ maxWidth: '180px', maxHeight: '180px', borderRadius: '6px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }} />
+                                <button onClick={() => removeImage(index)} style={{ position: 'absolute', top: '4px', right: '4px', background: '#ef4444', color: '#fff', border: 'none', borderRadius: '50%', width: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,0.2)' }}>
+                                    <IonIcon icon={trashOutline} style={{ fontSize: '12px' }} />
+                                </button>
+                            </div>
+                        ) : (
+                            <label style={{ fontSize: '0.75rem', padding: '4px 8px', background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0', borderRadius: '6px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
+                                <IonIcon icon={imageOutline} /> Attach Image
+                                <input type="file" accept="image/*" onChange={(e) => updateImage(index, e)} style={{ display: 'none' }} />
+                            </label>
+                        )}
                     </div>
+                ))}
+                
+                <div style={{ display: 'flex', gap: '8px', marginTop: '2px' }}>
+                    <button onClick={addValue} style={{ fontSize: '0.75rem', padding: '4px 10px', background: '#e0e7ff', color: '#4338ca', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: '500' }}>
+                        <IonIcon icon={documentTextOutline} /> Add Value Item
+                    </button>
                 </div>
             </div>
         </div>
@@ -270,6 +420,8 @@ const ImageBlock = ({ block, onUpdate }) => {
     const fileRef = useRef(null);
     const [uploading, setUploading] = useState(false);
     const [imgWidth, setImgWidth] = useState(content.width);
+    const imgWidthRef = useRef(imgWidth);
+    useEffect(() => { imgWidthRef.current = imgWidth; }, [imgWidth]);
     const resizeRef = useRef(null);
 
     const handleUpload = (e) => {
@@ -290,7 +442,7 @@ const ImageBlock = ({ block, onUpdate }) => {
             setImgWidth(newWidth);
         };
         const onUp = () => {
-            onUpdate(block.id, { ...content, width: imgWidth });
+            onUpdate(block.id, { ...content, width: imgWidthRef.current });
             window.removeEventListener('mousemove', onMove);
             window.removeEventListener('mouseup', onUp);
         };
@@ -316,7 +468,7 @@ const ImageBlock = ({ block, onUpdate }) => {
 
     return (
         <div className={`nbe-image-block align-${content.align || 'center'}`}>
-            <div className="nbe-image-wrapper" style={{ width: imgWidth || 'auto', maxWidth: '100%' }}>
+            <div className="nbe-image-wrapper" style={{ width: imgWidth || 'auto', maxWidth: (content.align === 'float-left' || content.align === 'float-right') ? '50%' : '100%' }}>
                 <img src={content.url} alt="" style={{ width: '100%' }} />
                 <div className="nbe-image-toolbar">
                     <button className={content.align === 'left' ? 'active' : ''} onClick={() => setAlign('left')}>Left</button>
@@ -375,7 +527,22 @@ const NoteBlockEditor = ({ note, subject, subfolder, subtopic: subtopicProp, par
 
     // Blocks
     const [blocks, setBlocks] = useState(() => {
-        if (note) return convertLegacyToBlocks(note);
+        if (note) {
+            const initialBlocks = convertLegacyToBlocks(note);
+            return initialBlocks.map(b => {
+                if (b.type === 'key-value') {
+                    const content = b.content || {};
+                    if ((!content.values || content.values.length === 0) && content.value) {
+                        const lines = content.value.split('\n');
+                        const values = lines.filter(l => l.trim() !== '').map(l => ({ text: l, image: '' }));
+                        if (values.length > 0) {
+                            return { ...b, content: { ...content, values } };
+                        }
+                    }
+                }
+                return b;
+            });
+        }
         return [];
     });
 
@@ -408,7 +575,7 @@ const NoteBlockEditor = ({ note, subject, subfolder, subtopic: subtopicProp, par
         const newBlock = {
             id: uuidv4(),
             type,
-            content: type === 'key-value' ? { key: '', value: '' } : type === 'image' ? {} : '',
+            content: type === 'key-value' ? { key: '', values: [] } : type === 'image' ? {} : '',
             order: 0,
         };
         setBlocks(prev => {
@@ -432,6 +599,10 @@ const NoteBlockEditor = ({ note, subject, subfolder, subtopic: subtopicProp, par
 
     const updateBlock = useCallback((id, content) => {
         setBlocks(prev => prev.map(b => b.id === id ? { ...b, content } : b));
+    }, []);
+
+    const updateBlockField = useCallback((id, field, value) => {
+        setBlocks(prev => prev.map(b => b.id === id ? { ...b, [field]: value } : b));
     }, []);
 
     const removeBlock = useCallback((id) => {
@@ -515,6 +686,24 @@ const NoteBlockEditor = ({ note, subject, subfolder, subtopic: subtopicProp, par
                     const uploadedUrl = await uploadImageToCloudinary(b.content.rawFile);
                     const { rawFile, ...rest } = b.content;
                     return { ...b, content: { ...rest, url: uploadedUrl } };
+                } else if (b.type === 'key-value') {
+                    let updatedBlock = JSON.parse(JSON.stringify(b)); // deep clone
+                    if (b.content?.rawFile) {
+                        const uploadedUrl = await uploadImageToCloudinary(b.content.rawFile);
+                        updatedBlock.content.image = uploadedUrl;
+                        delete updatedBlock.content.rawFile;
+                    }
+                    if (b.content?.values) {
+                        const updatedValues = await Promise.all(b.content.values.map(async (v) => {
+                            if (v.rawFile) {
+                                const uploadedUrl = await uploadImageToCloudinary(v.rawFile);
+                                return { text: v.text, image: uploadedUrl };
+                            }
+                            return v;
+                        }));
+                        updatedBlock.content.values = updatedValues;
+                    }
+                    return updatedBlock;
                 }
                 return b;
             }));
@@ -523,32 +712,16 @@ const NoteBlockEditor = ({ note, subject, subfolder, subtopic: subtopicProp, par
             const heading = finalBlocks.find(b => b.type === 'heading')?.content || '';
             const description = finalBlocks.find(b => b.type === 'description')?.content || '';
             const subheading = finalBlocks.filter(b => b.type === 'key-value').map(b => {
-                if (b.content?.rawText !== undefined) {
-                    const text = b.content.rawText;
-                    const idx = text.indexOf('-');
-                    if (idx !== -1) {
-                        return { key: text.substring(0, idx).trimEnd(), value: text.substring(idx + 1).trimStart() };
-                    }
-                    return { key: text, value: '' };
-                }
-                return { key: b.content?.key || '', value: b.content?.value || '' };
+                const key = b.content?.key || '';
+                const image = b.content?.image || '';
+                const imageAlign = b.content?.imageAlign || 'center';
+                const values = b.content?.values || [];
+                // Fallback for legacy structure where value was a string
+                const valueText = values.map(v => v.text).join('\n');
+                return { key, image, imageAlign, value: valueText || b.content?.value || '', values };
             });
 
-            // Mutate finalBlocks so backend gets the correct format
-            finalBlocks.forEach(b => {
-                if (b.type === 'key-value' && b.content?.rawText !== undefined) {
-                    const text = b.content.rawText;
-                    const idx = text.indexOf('-');
-                    if (idx !== -1) {
-                        b.content.key = text.substring(0, idx).trimEnd();
-                        b.content.value = text.substring(idx + 1).trimStart();
-                    } else {
-                        b.content.key = text;
-                        b.content.value = '';
-                    }
-                    delete b.content.rawText;
-                }
-            });
+            // No need to mutate finalBlocks for rawText since KVBlock was refactored
 
             const points = finalBlocks.filter(b => b.type === 'point').map(b => b.content || '');
             const review = finalBlocks.find(b => b.type === 'review')?.content || '';
@@ -609,18 +782,9 @@ const NoteBlockEditor = ({ note, subject, subfolder, subtopic: subtopicProp, par
                     el.type = 'text';
                     el.subType = 'paragraph';
                     let key = block.content?.key || '';
-                    let value = block.content?.value || '';
-                    if (block.content?.rawText !== undefined) {
-                        const idx = block.content.rawText.indexOf('-');
-                        if (idx !== -1) {
-                            key = block.content.rawText.substring(0, idx).trimEnd();
-                            value = block.content.rawText.substring(idx + 1).trimStart();
-                        } else {
-                            key = block.content.rawText;
-                            value = '';
-                        }
-                    }
-                    el.content = value ? `➔ ${key} - ${value}` : `➔ ${key}`;
+                    let values = block.content?.values || [];
+                    let valueText = values.map(v => (v.text || '') + (v.image ? ' [Image]' : '')).join(', ') || block.content?.value || '';
+                    el.content = valueText ? `${key} - ${valueText}` : `${key}`;
                     currentY += 40;
                 } else if (block.type === 'point') {
                     el.type = 'text';
@@ -667,9 +831,9 @@ const NoteBlockEditor = ({ note, subject, subfolder, subtopic: subtopicProp, par
     // ── Render a single block ────────────────────────────────────
     const renderBlock = (block) => {
         switch (block.type) {
-            case 'heading': return <HeadingBlock block={block} onUpdate={updateBlock} onKeyDown={handleEnterKey} mlEnabled={mlEnabled} />;
+            case 'heading': return <HeadingBlock block={block} onUpdate={updateBlock} onUpdateField={updateBlockField} onKeyDown={handleEnterKey} mlEnabled={mlEnabled} />;
             case 'description': return <DescriptionBlock block={block} onUpdate={updateBlock} onKeyDown={handleEnterKey} mlEnabled={mlEnabled} />;
-            case 'key-value': return <KVBlock block={block} onUpdate={updateBlock} onKeyDown={handleEnterKey} mlEnabled={mlEnabled} toggleVoice={toggleVoice} listeningBlockId={listeningBlockId} />;
+            case 'key-value': return <KVBlock block={block} onUpdate={updateBlock} onKeyDown={handleEnterKey} mlEnabled={mlEnabled} toggleVoice={toggleVoice} listeningBlockId={listeningBlockId} onDelete={() => removeBlock(block.id)} />;
             case 'point': return <PointBlock block={block} onUpdate={updateBlock} onKeyDown={handleEnterKey} mlEnabled={mlEnabled} />;
             case 'image': return <ImageBlock block={block} onUpdate={updateBlock} />;
             case 'review': return <ReviewBlock block={block} onUpdate={updateBlock} mlEnabled={mlEnabled} />;
@@ -766,7 +930,21 @@ const NoteBlockEditor = ({ note, subject, subfolder, subtopic: subtopicProp, par
                         <div className="nbe-block-content">
                             {renderBlock(block)}
                         </div>
-                        <div className="nbe-block-actions">
+                        <div className="nbe-block-actions" style={{ alignItems: 'center' }}>
+                            {block.type === 'heading' && (
+                                <select 
+                                    value={block.size || 'h3'} 
+                                    onChange={e => updateBlockField(block.id, 'size', e.target.value)} 
+                                    style={{ padding: '2px 4px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.75rem', background: '#f8fafc', color: '#475569', cursor: 'pointer', outline: 'none', marginRight: '4px' }}
+                                >
+                                    <option value="h1">H1</option>
+                                    <option value="h2">H2</option>
+                                    <option value="h3">H3</option>
+                                    <option value="h4">H4</option>
+                                    <option value="h5">H5</option>
+                                    <option value="h6">H6</option>
+                                </select>
+                            )}
                             {block.type !== 'image' && (
                                 <button
                                     className="nbe-block-action-btn"

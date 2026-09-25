@@ -1,2 +1,253 @@
 /* PushNotifications.css */
-/* Minimal styles since inline styles were used mostly */
+
+/* Custom dashboard base to match the main dashboard */
+.custom-dashboard-container {
+    padding: 2.5rem;
+    font-family: 'Inter', sans-serif;
+    color: #0f172a;
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+.custom-dashboard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.custom-dashboard-header h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 0 0 0.5rem 0;
+    letter-spacing: -0.02em;
+}
+
+.custom-dashboard-header p {
+    font-size: 0.95rem;
+    color: #64748b;
+    margin: 0;
+}
+
+/* Form Section */
+.push-notifications-content-layout {
+    display: flex;
+    gap: 2rem;
+    align-items: flex-start;
+}
+
+.push-notification-form-section {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    padding: 2rem;
+    flex: 0 0 450px;
+}
+
+@media (max-width: 1024px) {
+    .push-notifications-content-layout {
+        flex-direction: column;
+    }
+    
+    .push-notification-form-section {
+        flex: none;
+        width: 100%;
+        max-width: 100%;
+    }
+}
+
+.push-notification-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.form-group label {
+    font-weight: 600;
+    color: #334155;
+    font-size: 0.95rem;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+    padding: 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-family: inherit;
+    width: 100%;
+    transition: all 0.2s;
+}
+
+.form-group textarea {
+    resize: vertical;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.form-group small {
+    color: #64748b;
+    font-size: 0.85rem;
+    margin-top: 0.25rem;
+}
+
+.primary-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #0f172a;
+    color: white;
+    border: none;
+    padding: 0.75rem 1.25rem;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    gap: 0.5rem;
+}
+
+.primary-btn:hover:not(:disabled) {
+    background-color: #1e293b;
+}
+
+.primary-btn:disabled {
+    background-color: #94a3b8;
+    cursor: not-allowed;
+}
+
+@keyframes spin {
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+.spin-animation {
+    animation: spin 1s linear infinite;
+}
+
+/* Modern Table */
+.table-section-wrapper {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    overflow: hidden;
+}
+
+.section-header {
+    padding: 1.5rem;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.section-header h4 {
+    font-size: 1.15rem;
+    font-weight: 700;
+    margin: 0;
+}
+
+.table-responsive {
+    width: 100%;
+    overflow-x: auto;
+}
+
+.modern-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.modern-table th {
+    padding: 1rem 1.5rem;
+    text-align: left;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #64748b;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid #e2e8f0;
+    background-color: #f8fafc;
+    text-transform: uppercase;
+}
+
+.modern-table td {
+    padding: 1.2rem 1.5rem;
+    border-bottom: 1px solid #e2e8f0;
+    vertical-align: middle;
+}
+
+.modern-table tr:hover {
+    background-color: #f8fafc;
+}
+
+.modern-table tr:last-child td {
+    border-bottom: none;
+}
+
+/* Badges and Buttons */
+.role-badge {
+    padding: 0.35rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    background-color: #f1f5f9;
+    color: #475569;
+}
+
+.status-pill {
+    padding: 0.35rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.status-pill.active {
+    background-color: #dcfce7;
+    color: #166534;
+}
+
+.status-pill.inactive {
+    background-color: #fee2e2;
+    color: #b91c1c;
+}
+
+.icon-action-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 1.2rem;
+    margin-left: 0.5rem;
+    padding: 0.4rem;
+    border-radius: 6px;
+    transition: all 0.2s;
+}
+
+.icon-action-btn.edit {
+    color: #3b82f6;
+}
+
+.icon-action-btn.edit:hover {
+    background-color: #eff6ff;
+}
+
+.icon-action-btn.delete {
+    color: #ef4444;
+}
+
+.icon-action-btn.delete:hover {
+    background-color: #fef2f2;
+}
