@@ -8,8 +8,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import QuestionDisplay from './QuestionDisplay'
 import Details from '../../constants/Details'
 import { IonIcon } from '@ionic/react'
-import { close, createOutline, trashOutline, addOutline, cloudUploadOutline, languageOutline, alertCircleOutline, imageOutline, checkmarkCircleOutline, happyOutline, arrowUpOutline, arrowDownOutline, swapVerticalOutline, shuffleOutline, textOutline, chevronBackOutline, copyOutline, linkOutline } from 'ionicons/icons'
+import { close, createOutline, trashOutline, addOutline, cloudUploadOutline, languageOutline, alertCircleOutline, imageOutline, checkmarkCircleOutline, happyOutline, arrowUpOutline, arrowDownOutline, swapVerticalOutline, shuffleOutline, textOutline, chevronBackOutline, copyOutline, linkOutline, sparklesOutline } from 'ionicons/icons'
 import animation from '../../constants/animation'
+import ApiConstants from '../../constants/ApiConstants'
 import QuestionsList from './QuestionsList'
 import { Loader } from '../../Components/Loader/Loader'
 import { useImageOCR } from '../../utils/useImageOCR'
@@ -142,6 +143,43 @@ const QuestionsAndAnswers = () => {
     const [filterSubject, setFilterSubject] = useState('')
     const [showRelatedNotes, setShowRelatedNotes] = useState(false)
     const token = localStorage.getItem('token')
+
+    const [isGeneratingReview, setIsGeneratingReview] = useState(false);
+
+    const generateAiReview = async () => {
+        if (!question || !answer || options.length === 0 || !options.includes(answer)) {
+            alert("Please fill in the Question, Options, and select the Correct Answer before generating AI points.");
+            return;
+        }
+
+        setIsGeneratingReview(true);
+        try {
+            const answerIndex = options.indexOf(answer);
+            const res = await fetch(`${ApiConstants.BACKEND_API.BASE_API_URL}/ai/prefetch-facts`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    question: question,
+                    options: options,
+                    answerIndex: answerIndex
+                })
+            });
+            const data = await res.json();
+            if (data.reply) {
+                setReview(data.reply);
+            } else {
+                alert("AI could not generate points at this moment. The service may be busy.");
+            }
+        } catch (error) {
+            console.error("AI Error:", error);
+            alert("Error generating AI points.");
+        } finally {
+            setIsGeneratingReview(false);
+        }
+    };
 
     // ── Image OCR state ───────────────────────────────────────────────────────
     const { extractFromFile, extractCanvasesFromPDF, runOCR, isExtracting, ocrProgress, ocrError } = useImageOCR()
@@ -1404,27 +1442,40 @@ const QuestionsAndAnswers = () => {
                             </div>
 
                             <div className="qa-form-group">
-                                <label className="qa-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                    Review / Notes
-                                    <IonIcon 
-                                        icon={happyOutline} 
-                                        style={{ cursor: 'pointer', color: '#10b981', fontSize: '1.2rem' }} 
-                                        onClick={() => { setActiveEmojiField('review'); setShowEmojiPicker(true); }}
-                                        onMouseDown={(e) => e.preventDefault()}
-                                        title="Add Emoji"
-                                    />
-                                    <span 
-                                        style={{ cursor: 'pointer', fontSize: '1.2rem' }} 
-                                        onClick={() => setReview(prev => (prev || '') + '✅')}
-                                        onMouseDown={(e) => e.preventDefault()}
-                                        title="Quick Add ✅"
-                                    >✅</span>
-                                    <span 
-                                        style={{ cursor: 'pointer', fontSize: '1.2rem' }} 
-                                        onClick={() => setReview(prev => (prev || '') + '❌')}
-                                        onMouseDown={(e) => e.preventDefault()}
-                                        title="Quick Add ❌"
-                                    >❌</span>
+                                <label className="qa-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'space-between' }}>
+                                    <span>Review / Notes</span>
+                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                        <button 
+                                            type="button"
+                                            onClick={generateAiReview} 
+                                            disabled={isGeneratingReview}
+                                            className="qa-icon-btn"
+                                            style={{ backgroundColor: '#e0f2fe', color: '#0284c7', padding: '4px 8px', borderRadius: '4px', border: '1px solid #bae6fd', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem', fontWeight: 'bold' }}
+                                            title="Fetch points from AI"
+                                        >
+                                            <IonIcon icon={sparklesOutline} />
+                                            {isGeneratingReview ? 'Fetching...' : 'AI ✨'}
+                                        </button>
+                                        <IonIcon 
+                                            icon={happyOutline} 
+                                            style={{ cursor: 'pointer', color: '#10b981', fontSize: '1.2rem' }} 
+                                            onClick={() => { setActiveEmojiField('review'); setShowEmojiPicker(true); }}
+                                            onMouseDown={(e) => e.preventDefault()}
+                                            title="Add Emoji"
+                                        />
+                                        <span 
+                                            style={{ cursor: 'pointer', fontSize: '1.2rem' }} 
+                                            onClick={() => setReview(prev => (prev || '') + '✅')}
+                                            onMouseDown={(e) => e.preventDefault()}
+                                            title="Quick Add ✅"
+                                        >✅</span>
+                                        <span 
+                                            style={{ cursor: 'pointer', fontSize: '1.2rem' }} 
+                                            onClick={() => setReview(prev => (prev || '') + '❌')}
+                                            onMouseDown={(e) => e.preventDefault()}
+                                            title="Quick Add ❌"
+                                        >❌</span>
+                                    </div>
                                 </label>
                                 <VoiceInputWrapper value={review} onTextUpdate={setReview} lang={voiceLang} className="voice-input-wrapper-textarea">
                                     <ReactTransliterate

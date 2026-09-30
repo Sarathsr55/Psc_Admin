@@ -185,14 +185,19 @@ const KVBlock = ({ block, onUpdate, onKeyDown, mlEnabled, toggleVoice, listening
 
     const handleKeyEnter = (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            addValue();
-            setTimeout(() => {
-                const newIndex = values.length;
-                if (valueRefs.current[newIndex]) {
-                    valueRefs.current[newIndex].focus();
-                }
-            }, 50);
+            const val = e.currentTarget.value;
+            const cursor = e.currentTarget.selectionStart;
+            if (cursor > 0 && val[cursor - 1] === '\n') {
+                e.preventDefault();
+                onUpdate(block.id, { ...content, key: val.slice(0, cursor - 1) + val.slice(cursor) });
+                addValue();
+                setTimeout(() => {
+                    const newIndex = values.length;
+                    if (valueRefs.current[newIndex]) {
+                        valueRefs.current[newIndex].focus();
+                    }
+                }, 50);
+            }
         }
     };
 
@@ -284,7 +289,7 @@ const KVBlock = ({ block, onUpdate, onKeyDown, mlEnabled, toggleVoice, listening
     }
 
     return (
-        <div className="nbe-kv-block" style={{ display: 'block', padding: '10px', backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', width: '100%', marginBottom: '4px', position: 'relative', overflow: 'hidden' }}>
+        <div className="nbe-kv-block" style={{ display: 'block', padding: '10px', backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', width: '100%', marginBottom: '4px', position: 'relative' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', marginBottom: '10px' }}>
                 <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Editing Block</span>
                 <button onClick={() => setIsEditing(false)} style={{ padding: '4px 12px', background: '#ecfccb', color: '#4d7c0f', border: '1px solid #bef264', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}>
@@ -318,7 +323,7 @@ const KVBlock = ({ block, onUpdate, onKeyDown, mlEnabled, toggleVoice, listening
                 )}
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '8px', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '8px' }}>
                 <span style={{ fontWeight: 'bold', color: '#6366f1', marginTop: '6px', fontSize: '1.1rem' }}>-&gt;</span>
                 <MlInput
                     value={content.key || ''}
@@ -330,6 +335,16 @@ const KVBlock = ({ block, onUpdate, onKeyDown, mlEnabled, toggleVoice, listening
                     className="nbe-block-input"
                     style={{ flex: 1, padding: '4px 6px', borderRadius: '6px', border: '1px solid #d1d5db', minHeight: '24px', backgroundColor: '#f9fafb', fontSize: '0.95rem' }}
                 />
+                <button
+                    className="nbe-block-action-btn"
+                    title="Voice input for Key"
+                    onClick={() => toggleVoice(block.id, 'key')}
+                    onMouseDown={(e) => e.preventDefault()}
+                    style={{ color: listeningBlockId === `${block.id}-key` ? '#ef4444' : undefined, marginTop: '2px', padding: '6px' }}
+                >
+                    {listeningBlockId === `${block.id}-key` ? <FaStop size={12} /> : <FaMicrophone size={12} />}
+                    {listeningBlockId === `${block.id}-key` && <span className="listening-pulse" style={{ width: 20, height: 20 }} />}
+                </button>
             </div>
             
             <div style={{ display: 'block', marginTop: '4px' }}>
@@ -341,12 +356,17 @@ const KVBlock = ({ block, onUpdate, onKeyDown, mlEnabled, toggleVoice, listening
                                 onChange={(val) => updateText(index, val)}
                                 onKeyDown={(e) => {
                                     if (e.key === 'Enter' && !e.shiftKey) {
-                                        e.preventDefault();
-                                        addValue();
-                                        setTimeout(() => {
-                                            const newIndex = values.length;
-                                            if (valueRefs.current[newIndex]) valueRefs.current[newIndex].focus();
-                                        }, 50);
+                                        const val = e.currentTarget.value;
+                                        const cursor = e.currentTarget.selectionStart;
+                                        if (cursor > 0 && val[cursor - 1] === '\n') {
+                                            e.preventDefault();
+                                            updateText(index, val.slice(0, cursor - 1) + val.slice(cursor));
+                                            addValue();
+                                            setTimeout(() => {
+                                                const newIndex = values.length;
+                                                if (valueRefs.current[newIndex]) valueRefs.current[newIndex].focus();
+                                            }, 50);
+                                        }
                                     }
                                 }}
                                 inputRef={(el) => (valueRefs.current[index] = el)}
@@ -356,6 +376,16 @@ const KVBlock = ({ block, onUpdate, onKeyDown, mlEnabled, toggleVoice, listening
                                 className="nbe-block-input"
                                 style={{ flex: 1, width: '100%', padding: '4px 6px', borderRadius: '6px', border: '1px solid #e5e7eb', minHeight: '24px', backgroundColor: '#ffffff', fontSize: '0.95rem' }}
                             />
+                            <button
+                                className="nbe-block-action-btn"
+                                title="Voice input for Value"
+                                onClick={() => toggleVoice(block.id, `value-${index}`)}
+                                onMouseDown={(e) => e.preventDefault()}
+                                style={{ color: listeningBlockId === `${block.id}-value-${index}` ? '#ef4444' : undefined, padding: '6px' }}
+                            >
+                                {listeningBlockId === `${block.id}-value-${index}` ? <FaStop size={12} /> : <FaMicrophone size={12} />}
+                                {listeningBlockId === `${block.id}-value-${index}` && <span className="listening-pulse" style={{ width: 20, height: 20 }} />}
+                            </button>
                             <button onClick={() => removeValue(index)} style={{ padding: '6px', color: '#ef4444', background: '#fee2e2', border: 'none', cursor: 'pointer', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                 <IonIcon icon={trashOutline} />
                             </button>
@@ -656,6 +686,17 @@ const NoteBlockEditor = ({ note, subject, subfolder, subtopic: subtopicProp, par
                 setBlocks(prev => prev.map(b => {
                     if (b.id !== blockId) return b;
                     if (b.type === 'key-value') {
+                        if (targetField === 'key') {
+                            return { ...b, content: { ...b.content, key: (b.content.key || '') + transcript } };
+                        }
+                        if (targetField && targetField.startsWith('value-')) {
+                            const index = parseInt(targetField.split('-')[1], 10);
+                            const newValues = [...(b.content.values || [])];
+                            if (newValues[index]) {
+                                newValues[index] = { ...newValues[index], text: (newValues[index].text || '') + transcript };
+                            }
+                            return { ...b, content: { ...b.content, values: newValues } };
+                        }
                         const existingText = b.content?.rawText !== undefined 
                             ? b.content.rawText 
                             : ((b.content?.key || '') + (b.content?.value ? ' - ' + b.content.value : ''));
@@ -945,7 +986,7 @@ const NoteBlockEditor = ({ note, subject, subfolder, subtopic: subtopicProp, par
                                     <option value="h6">H6</option>
                                 </select>
                             )}
-                            {block.type !== 'image' && (
+                            {block.type !== 'image' && block.type !== 'key-value' && (
                                 <button
                                     className="nbe-block-action-btn"
                                     title="Voice input"

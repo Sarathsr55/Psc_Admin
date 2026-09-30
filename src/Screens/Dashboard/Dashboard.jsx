@@ -288,7 +288,7 @@ const Dashboard = () => {
                 </div>
 
                 {/* Daily Active Users Chart */}
-                <div className="activity-chart-section">
+                <div className="activity-chart-section" style={{ animation: 'slideUp 0.6s var(--ease-out) 0.5s both' }}>
                     <div className="chart-header">
                         <div>
                             <h4>Daily Active Users</h4>
@@ -323,7 +323,7 @@ const Dashboard = () => {
                                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} dy={10} />
                                 <YAxis axisLine={false} tickLine={false} tick={false} />
                                 <Tooltip 
-                                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
+                                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 8px 24px rgba(0,0,0,0.1)', padding: '0.75rem 1rem' }}
                                     itemStyle={{ color: '#0f172a', fontWeight: 'bold' }}
                                 />
                                 <Area 
@@ -333,13 +333,14 @@ const Dashboard = () => {
                                     strokeWidth={3}
                                     fillOpacity={1} 
                                     fill="url(#colorUsers)" 
-                                    activeDot={{ r: 6, strokeWidth: 0, fill: '#3b82f6' }}
+                                    activeDot={{ r: 7, strokeWidth: 0, fill: '#3b82f6' }}
                                     dot={{ r: 4, strokeWidth: 2, fill: '#fff', stroke: '#3b82f6' }}
                                 />
                             </AreaChart>
                         </ResponsiveContainer>
                     </div>
                 </div>
+
 
             </div>
         </div>
