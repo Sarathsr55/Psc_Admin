@@ -1,16 +1,29 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { IonIcon } from '@ionic/react'
 import { filterOutline, downloadOutline } from 'ionicons/icons'
 import './Logs.css'
+import { getAllPayments } from '../../services/Orders'
 
 const PaymentLogs = () => {
-  const dummyPayments = [
-    { id: 'TXN-9021', date: '2026-08-08 14:20', user: 'Alice Smith', amount: '$49.99', status: 'Completed', method: 'Credit Card' },
-    { id: 'TXN-9022', date: '2026-08-07 09:15', user: 'Bob Jones', amount: '$19.99', status: 'Failed', method: 'PayPal' },
-    { id: 'TXN-9023', date: '2026-08-07 16:45', user: 'Charlie Brown', amount: '$99.99', status: 'Completed', method: 'Stripe' },
-    { id: 'TXN-9024', date: '2026-08-06 11:30', user: 'Diana Prince', amount: '$49.99', status: 'Pending', method: 'Bank Transfer' },
-    { id: 'TXN-9025', date: '2026-08-05 18:05', user: 'Evan Wright', amount: '$29.99', status: 'Completed', method: 'Credit Card' },
-  ]
+  const [payments, setPayments] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  const fetchPayments = async () => {
+    try {
+      const response = await getAllPayments()
+      if (Array.isArray(response)) {
+        setPayments(response)
+      }
+    } catch (error) {
+      console.error("Failed to fetch payments", error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchPayments()
+  }, [])
 
   const getBadgeClass = (status) => {
     if (status === 'Completed') return 'success';
@@ -52,20 +65,29 @@ const PaymentLogs = () => {
               </tr>
             </thead>
             <tbody>
-              {dummyPayments.map(payment => (
-                <tr key={payment.id}>
-                  <td className="log-date">{payment.date}</td>
-                  <td style={{fontFamily: 'monospace', fontWeight: 600, color: '#3b82f6'}}>{payment.id}</td>
-                  <td className="user-name">{payment.user}</td>
-                  <td style={{fontWeight: '700', color: '#0f172a'}}>{payment.amount}</td>
-                  <td>{payment.method}</td>
-                  <td>
-                    <span className={`status-pill ${getBadgeClass(payment.status)}`}>
-                      {payment.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
+              {loading ? (
+                <tr><td colSpan="6" style={{textAlign: 'center'}}>Loading payments...</td></tr>
+              ) : payments.length === 0 ? (
+                <tr><td colSpan="6" style={{textAlign: 'center'}}>No payments found.</td></tr>
+              ) : (
+                payments.map(payment => {
+                  let status = payment.status || 'Completed';
+                  return (
+                    <tr key={payment._id}>
+                      <td className="log-date">{payment.date} {payment.time}</td>
+                      <td style={{fontFamily: 'monospace', fontWeight: 600, color: '#3b82f6'}}>{payment.razorpay_payment_id || payment._id.substring(0, 10).toUpperCase()}</td>
+                      <td className="user-name">{payment.username}</td>
+                      <td style={{fontWeight: '700', color: '#0f172a'}}>₹{payment.amount}</td>
+                      <td>{payment.planType} ({payment.billingCycle})</td>
+                      <td>
+                        <span className={`status-pill ${getBadgeClass(status)}`}>
+                          {status}
+                        </span>
+                      </td>
+                    </tr>
+                  )
+                })
+              )}
             </tbody>
           </table>
         </div>

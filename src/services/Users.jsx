@@ -21,5 +21,15 @@ const getDashboardStats = async () => {
     return stats?.data
 }
 
-export { getUserById, getDashboardStats }
+const getAllUsers = async () => {
+    let token = localStorage.getItem('token')
+    const users = await AuthRequest.get(ApiConstants.BACKEND_API.ALL_USERS, {
+        headers: {
+            Authorization: `Bearer ${token}`
+        }
+    })
+    return users?.data
+}
+
+export { getUserById, getDashboardStats, getAllUsers }
 

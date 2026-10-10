@@ -56,6 +56,19 @@ const getAllOrders = async()=>{
     }
 }
 
+const getAllPayments = async()=>{
+    try {
+        let paymentResult = await AuthRequest.get(ApiConstants.BACKEND_API.ALL_PAYMENTS,{
+            headers:{
+                Authorization: `Bearer ${token}`
+            }
+        })
+        return paymentResult?.data
+    } catch (error) {
+        return `Error: ${error}`
+    }
+}
+
 const deleteOrder = async(order)=>{
     
     try {
@@ -71,5 +84,5 @@ const deleteOrder = async(order)=>{
     }
 }
 
-export {addOrder,getAllOrders,updateOrder,deleteOrder}
+export {addOrder,getAllOrders,updateOrder,deleteOrder,getAllPayments}
 

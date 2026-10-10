@@ -16,15 +16,30 @@ const CourseManager = () => {
     const [imagePreview, setImagePreview] = useState('');
 
     // Video Form
-    const [newVideo, setNewVideo] = useState({ title: '', videoLink: '', duration: '' });
+    const [newVideo, setNewVideo] = useState({ title: '', videoLink: '', duration: '', day: 'Day 1' });
     // Note Form
-    const [newNote, setNewNote] = useState({ title: '', fileLink: '' });
+    const [newNote, setNewNote] = useState({ title: '', fileLink: '', day: 'Day 1' });
+    const [noteSource, setNoteSource] = useState('external'); // 'external' or 'internal'
+    const [globalNotes, setGlobalNotes] = useState([]);
 
     const BASE_URL = ApiConstants.BACKEND_API.BASE_API_URL;
 
     useEffect(() => {
         fetchCourses();
+        fetchGlobalNotes();
     }, []);
+
+    const fetchGlobalNotes = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const res = await axios.get(`${BASE_URL}${ApiConstants.BACKEND_API.GETALLNOTES}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setGlobalNotes(res.data?.data || res.data || []);
+        } catch (error) {
+            console.error("Failed to fetch global notes", error);
+        }
+    };
 
     const fetchCourses = async () => {
         try {
@@ -113,7 +128,7 @@ const CourseManager = () => {
                 headers: { Authorization: `Bearer ${token}` }
             });
             toast.success("Video added!");
-            setNewVideo({ title: '', videoLink: '', duration: '' });
+            setNewVideo({ title: '', videoLink: '', duration: '', day: 'Day 1' });
             fetchCourses();
         } catch (error) {
             toast.error("Failed to add video");
@@ -147,7 +162,7 @@ const CourseManager = () => {
                 headers: { Authorization: `Bearer ${token}` }
             });
             toast.success("Note added!");
-            setNewNote({ title: '', fileLink: '' });
+            setNewNote({ title: '', fileLink: '', day: 'Day 1' });
             fetchCourses();
         } catch (error) {
             toast.error("Failed to add note");
@@ -228,6 +243,7 @@ const CourseManager = () => {
                         
                         <form onSubmit={handleAddVideo} style={{ marginBottom: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                             <input type="text" placeholder="Video Title" value={newVideo.title} onChange={e => setNewVideo({...newVideo, title: e.target.value})} required style={{ padding: '0.5rem', borderRadius: '6px', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.1)', color: 'white' }} />
+                            <input type="text" placeholder="Day (e.g. Day 1)" value={newVideo.day} onChange={e => setNewVideo({...newVideo, day: e.target.value})} required style={{ padding: '0.5rem', borderRadius: '6px', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.1)', color: 'white' }} />
                             <input type="text" placeholder="Video Link (YouTube/Vimeo)" value={newVideo.videoLink} onChange={e => setNewVideo({...newVideo, videoLink: e.target.value})} required style={{ padding: '0.5rem', borderRadius: '6px', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.1)', color: 'white' }} />
                             <input type="text" placeholder="Duration (e.g. 10:45)" value={newVideo.duration} onChange={e => setNewVideo({...newVideo, duration: e.target.value})} style={{ padding: '0.5rem', borderRadius: '6px', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.1)', color: 'white' }} />
                             <button type="submit" className="btn-primary" style={{ padding: '0.5rem', marginTop: '0.5rem' }}>Add Video</button>
@@ -238,7 +254,7 @@ const CourseManager = () => {
                             {selectedCourse.videos?.map(video => (
                                 <div key={video._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(0,0,0,0.2)', padding: '0.75rem', borderRadius: '8px' }}>
                                     <div>
-                                        <div style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>{video.title}</div>
+                                        <div style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>{video.title} <span style={{fontSize:'0.75rem', opacity:0.7, color: '#facc15'}}>({video.day || 'Day 1'})</span></div>
                                         <a href={video.videoLink} target="_blank" rel="noreferrer" style={{ fontSize: '0.75rem', color: '#60a5fa' }}>{video.videoLink}</a>
                                         {video.duration && <span style={{ fontSize: '0.75rem', opacity: 0.6, marginLeft: '0.5rem' }}>({video.duration})</span>}
                                     </div>
@@ -253,8 +269,39 @@ const CourseManager = () => {
                         <h4 style={{ marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>Course Notes</h4>
                         
                         <form onSubmit={handleAddNote} style={{ marginBottom: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            <input type="text" placeholder="Note Title" value={newNote.title} onChange={e => setNewNote({...newNote, title: e.target.value})} required style={{ padding: '0.5rem', borderRadius: '6px', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.1)', color: 'white' }} />
-                            <input type="text" placeholder="PDF/File Link" value={newNote.fileLink} onChange={e => setNewNote({...newNote, fileLink: e.target.value})} required style={{ padding: '0.5rem', borderRadius: '6px', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.1)', color: 'white' }} />
+                            <div style={{ display: 'flex', gap: '1rem', marginBottom: '0.5rem' }}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem' }}>
+                                    <input type="radio" checked={noteSource === 'external'} onChange={() => setNoteSource('external')} /> Custom PDF/Link
+                                </label>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem' }}>
+                                    <input type="radio" checked={noteSource === 'internal'} onChange={() => setNoteSource('internal')} /> Existing Note
+                                </label>
+                            </div>
+
+                            {noteSource === 'internal' ? (
+                                <select 
+                                    value={newNote.fileLink.startsWith('app-note://') ? newNote.fileLink.replace('app-note://', '') : ''}
+                                    onChange={(e) => {
+                                        const selectedId = e.target.value;
+                                        const found = globalNotes.find(n => n._id === selectedId);
+                                        if (found) {
+                                            setNewNote({ ...newNote, title: found.heading || 'Untitled Note', fileLink: `app-note://${selectedId}` });
+                                        }
+                                    }}
+                                    required
+                                    style={{ padding: '0.5rem', borderRadius: '6px', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.1)', color: 'white', outline: 'none' }}
+                                >
+                                    <option value="" disabled>-- Select an Existing Note --</option>
+                                    {globalNotes.map(gn => (
+                                        <option key={gn._id} value={gn._id}>{gn.heading || gn.title || 'Untitled'} - {gn.category || 'General'}</option>
+                                    ))}
+                                </select>
+                            ) : (
+                                <input type="text" placeholder="PDF/File Link" value={newNote.fileLink} onChange={e => setNewNote({...newNote, fileLink: e.target.value})} required style={{ padding: '0.5rem', borderRadius: '6px', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.1)', color: 'white' }} />
+                            )}
+
+                            <input type="text" placeholder="Note Title (Display Name)" value={newNote.title} onChange={e => setNewNote({...newNote, title: e.target.value})} required style={{ padding: '0.5rem', borderRadius: '6px', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.1)', color: 'white' }} />
+                            <input type="text" placeholder="Day (e.g. Day 1)" value={newNote.day} onChange={e => setNewNote({...newNote, day: e.target.value})} required style={{ padding: '0.5rem', borderRadius: '6px', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.1)', color: 'white' }} />
                             <button type="submit" className="btn-primary" style={{ padding: '0.5rem', marginTop: '0.5rem' }}>Add Note</button>
                         </form>
 
@@ -263,8 +310,12 @@ const CourseManager = () => {
                             {selectedCourse.notes?.map(note => (
                                 <div key={note._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(0,0,0,0.2)', padding: '0.75rem', borderRadius: '8px' }}>
                                     <div>
-                                        <div style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>{note.title}</div>
-                                        <a href={note.fileLink} target="_blank" rel="noreferrer" style={{ fontSize: '0.75rem', color: '#60a5fa' }}>Download / View File</a>
+                                        <div style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>{note.title} <span style={{fontSize:'0.75rem', opacity:0.7, color: '#facc15'}}>({note.day || 'Day 1'})</span></div>
+                                        {note.fileLink?.startsWith('app-note://') ? (
+                                            <span style={{ fontSize: '0.75rem', color: '#a78bfa' }}>Internal App Note (opens in Viewer)</span>
+                                        ) : (
+                                            <a href={note.fileLink} target="_blank" rel="noreferrer" style={{ fontSize: '0.75rem', color: '#60a5fa' }}>Download / View File</a>
+                                        )}
                                     </div>
                                     <button onClick={() => handleDeleteNote(note._id)} className="btn-danger" style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}>Remove</button>
                                 </div>

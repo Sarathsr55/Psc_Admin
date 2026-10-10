@@ -15,6 +15,7 @@ import PaymentLogs from '../../Screens/Logs/PaymentLogs'
 import StudyMaterials from '../../Screens/Products/StudyMaterials'
 import ContentManagement from '../../Screens/ContentManagement/ContentManagement'
 import PushNotifications from '../../Screens/Notifications/PushNotifications'
+import SubscriptionSettings from '../../Screens/Settings/SubscriptionSettings'
 
 
 const Tab = () => {
@@ -108,7 +109,7 @@ const Tab = () => {
                     <PushNotifications/>
                 </div>
                 <div className={tabno === 7 ?'active-tab':'tab'} >
-                    
+                    <SubscriptionSettings/>
                 </div>
 
             </div>
