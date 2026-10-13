@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { IonIcon } from '@ionic/react';
-import { addOutline, saveOutline, imageOutline, arrowBackOutline, trashOutline, reorderThreeOutline, chevronDownOutline, chevronUpOutline, languageOutline, documentTextOutline } from 'ionicons/icons';
+import { addOutline, saveOutline, imageOutline, arrowBackOutline, trashOutline, reorderThreeOutline, chevronDownOutline, chevronUpOutline, languageOutline, documentTextOutline, cloudUploadOutline, chevronBackOutline, checkmarkCircleOutline, swapVerticalOutline, shuffleOutline, copyOutline, textOutline } from 'ionicons/icons';
 import { FaMicrophone, FaStop } from 'react-icons/fa';
 import { ReactTransliterate } from 'react-transliterate';
 import 'react-transliterate/dist/index.css';
@@ -9,9 +9,40 @@ import VoiceInputWrapper from '../../Components/VoiceInput/VoiceInputWrapper';
 import '../../Components/VoiceInput/VoiceInput.css';
 import './NoteBlockEditor.css';
 import { uploadImageToCloudinary } from '../../utils/cloudinary';
-import { addNote, updateNotes } from '../../services/notes';
+import { addNote, updateNotes, deleteNote } from '../../services/notes';
 import { addStudyMaterial } from '../../services/studyMaterialService';
 import { Loader } from '../../Components/Loader/Loader';
+import { useImageOCR } from '../../utils/useImageOCR';
+
+const PdfPageCard = React.memo(({ idx, dataUrl, isSelected, onToggle }) => {
+    return (
+        <div
+            onClick={() => onToggle(idx)}
+            style={{
+                cursor: 'pointer',
+                border: isSelected ? '2px solid #3b82f6' : '2px solid #e2e8f0',
+                borderRadius: '8px',
+                padding: '4px',
+                position: 'relative',
+                opacity: isSelected ? 1 : 0.5,
+                transition: 'all 0.2s ease',
+                background: '#ffffff'
+            }}
+        >
+            <img src={dataUrl} alt={`Page ${idx + 1}`} style={{ width: '100%', height: 'auto', display: 'block', borderRadius: '4px' }} />
+            <div style={{ position: 'absolute', top: '8px', right: '8px', background: 'white', borderRadius: '50%', padding: '2px', display: 'flex' }}>
+                <input
+                    type="checkbox"
+                    checked={isSelected || false}
+                    onChange={() => onToggle(idx)}
+                    onClick={(e) => e.stopPropagation()}
+                    style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                />
+            </div>
+            <div style={{ textAlign: 'center', marginTop: '4px', fontSize: '0.8rem', fontWeight: 600 }}>Page {idx + 1}</div>
+        </div>
+    );
+});
 
 // ── Auto-convert old note format to blocks ───────────────────────────
 const convertLegacyToBlocks = (note) => {
@@ -41,7 +72,7 @@ const convertLegacyToBlocks = (note) => {
 };
 
 // ── Malayalam Transliterate Input ─────────────────────────────────
-const MlInput = ({ value, onChange, placeholder, inputRef, className, style, onKeyDown, onBlur, mlEnabled, multiLine = false, autoFocus = false }) => {
+const MlInput = ({ value, onChange, placeholder, inputRef, className, style, onKeyDown, onBlur, mlEnabled, multiLine = false, autoFocus = false, ...rest }) => {
     const internalRef = useRef(null);
 
     useEffect(() => {
@@ -62,6 +93,7 @@ const MlInput = ({ value, onChange, placeholder, inputRef, className, style, onK
             renderComponent={(props) => {
                     const mergedProps = {
                         ...props,
+                        ...rest,
                         ref: (el) => {
                             if (typeof props.ref === 'function') props.ref(el);
                             else if (props.ref) props.ref.current = el;
@@ -74,8 +106,8 @@ const MlInput = ({ value, onChange, placeholder, inputRef, className, style, onK
                         className: className || '',
                         placeholder: placeholder,
                         onKeyDown: (e) => {
-                            if (props.onKeyDown) props.onKeyDown(e);
-                            if (onKeyDown && !e.defaultPrevented) onKeyDown(e);
+                            if (onKeyDown) onKeyDown(e);
+                            if (props.onKeyDown && !e.defaultPrevented) props.onKeyDown(e);
                         },
                         onBlur: (e) => {
                             if (props.onBlur) props.onBlur(e);
@@ -164,19 +196,32 @@ const DescriptionBlock = ({ block, onUpdate, onKeyDown, mlEnabled }) => {
     );
 };
 
-const KVBlock = ({ block, onUpdate, onKeyDown, mlEnabled, toggleVoice, listeningBlockId, onDelete }) => {
+const KVBlock = ({ block, onUpdate, onKeyDown, mlEnabled, toggleVoice, listeningBlockId, onDelete, onAddNext }) => {
     const content = block.content || { key: '', values: [] };
     let values = content.values || [];
     if (values.length === 0 && content.value) {
         values = content.value.split('\n').filter(l => l.trim() !== '').map(l => ({ text: l, image: '' }));
     }
+    if (values.length === 0) {
+        values = [{ text: '', image: '' }];
+    }
 
-    const [isEditing, setIsEditing] = useState(!content.key && values.length === 0);
+    const [isEditing, setIsEditing] = useState(!content.key && (values.length === 0 || !values[0].text));
     const [isHovered, setIsHovered] = useState(false);
+    const keyInputRef = useRef(null);
     const valueRefs = useRef([]);
 
+    const handleAddNextKV = () => {
+        if (content.key || values.some(v => v.text?.trim() || v.image)) {
+            setIsEditing(false);
+        }
+        if (onAddNext) {
+            onAddNext();
+        }
+    };
+
     const handleKeyChange = (val) => {
-        onUpdate(block.id, { ...content, key: val });
+        onUpdate(block.id, { ...content, key: val, values });
     };
 
     const addValue = () => {
@@ -184,19 +229,65 @@ const KVBlock = ({ block, onUpdate, onKeyDown, mlEnabled, toggleVoice, listening
     };
 
     const handleKeyEnter = (e) => {
+        // Keyboard Shortcuts: Ctrl+Enter or Alt+K -> Create next Key-Value block
+        if (((e.ctrlKey || e.metaKey) && e.key === 'Enter') || (e.altKey && (e.key === 'k' || e.key === 'K'))) {
+            e.preventDefault();
+            handleAddNextKV();
+            return;
+        }
+
+        // Tab moves to first value input
+        if (e.key === 'Tab' && !e.shiftKey) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const doFocusValue = () => {
+                let el = valueRefs.current[0];
+                if (!el && e.currentTarget) {
+                    const blockContainer = e.currentTarget.closest('.nbe-kv-block') || e.currentTarget.closest('[data-block-id]');
+                    if (blockContainer) {
+                        el = blockContainer.querySelector('.nbe-kv-value-input') || blockContainer.querySelectorAll('textarea')[1];
+                    }
+                }
+                if (!el) {
+                    el = document.querySelector(`[data-block-id="${block.id}"] .nbe-kv-value-input, [data-block-id="${block.id}"] textarea:not(.nbe-kv-key-input)`);
+                }
+                if (el) {
+                    el.focus();
+                    const len = el.value ? el.value.length : 0;
+                    if (el.setSelectionRange) el.setSelectionRange(len, len);
+                    return true;
+                }
+                return false;
+            };
+
+            if (values.length === 0) {
+                addValue();
+                setTimeout(doFocusValue, 50);
+            } else {
+                doFocusValue();
+                setTimeout(doFocusValue, 30);
+            }
+            return;
+        }
+
         if (e.key === 'Enter' && !e.shiftKey) {
             const val = e.currentTarget.value;
             const cursor = e.currentTarget.selectionStart;
             if (cursor > 0 && val[cursor - 1] === '\n') {
                 e.preventDefault();
-                onUpdate(block.id, { ...content, key: val.slice(0, cursor - 1) + val.slice(cursor) });
-                addValue();
-                setTimeout(() => {
-                    const newIndex = values.length;
-                    if (valueRefs.current[newIndex]) {
-                        valueRefs.current[newIndex].focus();
-                    }
-                }, 50);
+                onUpdate(block.id, { ...content, key: val.slice(0, cursor - 1) + val.slice(cursor), values });
+                const doFocusValue = () => {
+                    const el = valueRefs.current[0] || document.querySelector(`[data-block-id="${block.id}"] .nbe-kv-value-input, [data-block-id="${block.id}"] textarea:not(.nbe-kv-key-input)`);
+                    if (el) el.focus();
+                };
+                if (values.length === 0) {
+                    addValue();
+                    setTimeout(doFocusValue, 50);
+                } else {
+                    doFocusValue();
+                    setTimeout(doFocusValue, 30);
+                }
             }
         }
     };
@@ -276,7 +367,7 @@ const KVBlock = ({ block, onUpdate, onKeyDown, mlEnabled, toggleVoice, listening
                 
                 {isHovered && (
                     <div style={{ position: 'absolute', top: '8px', right: '8px', display: 'flex', gap: '6px' }}>
-                        <button onClick={() => setIsEditing(true)} style={{ padding: '6px 12px', background: '#e0e7ff', color: '#4338ca', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600, display: 'flex', alignItems: 'center' }}>
+                        <button onClick={() => { setIsEditing(true); setTimeout(() => keyInputRef.current?.focus(), 50); }} style={{ padding: '6px 12px', background: '#e0e7ff', color: '#4338ca', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600, display: 'flex', alignItems: 'center' }}>
                             Edit
                         </button>
                         <button onClick={onDelete} style={{ padding: '6px 12px', background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600, display: 'flex', alignItems: 'center' }}>
@@ -290,11 +381,33 @@ const KVBlock = ({ block, onUpdate, onKeyDown, mlEnabled, toggleVoice, listening
 
     return (
         <div className="nbe-kv-block" style={{ display: 'block', padding: '10px', backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', width: '100%', marginBottom: '4px', position: 'relative' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', marginBottom: '10px' }}>
-                <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Editing Block</span>
-                <button onClick={() => setIsEditing(false)} style={{ padding: '4px 12px', background: '#ecfccb', color: '#4d7c0f', border: '1px solid #bef264', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}>
-                    Done
-                </button>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>🔑 Key-Value Block</span>
+                    <span style={{ fontSize: '0.74rem', color: '#4338ca', background: '#e0e7ff', padding: '3px 8px', borderRadius: '12px', fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                        <span>Next pair:</span>
+                        <kbd style={{ fontWeight: 700, background: '#fff', padding: '1px 5px', borderRadius: '4px', border: '1px solid #c7d2fe' }}>Ctrl+Enter</kbd>
+                        <span>or</span>
+                        <kbd style={{ fontWeight: 700, background: '#fff', padding: '1px 5px', borderRadius: '4px', border: '1px solid #c7d2fe' }}>Alt+K</kbd>
+                    </span>
+                </div>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                    <button 
+                        type="button"
+                        onClick={handleAddNextKV} 
+                        style={{ padding: '4px 10px', background: '#e0e7ff', color: '#4338ca', border: '1px solid #c7d2fe', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}
+                        title="Add next Key-Value pair (Ctrl + Enter or Alt + K)"
+                    >
+                        <IonIcon icon={addOutline} /> Next Pair
+                    </button>
+                    <button 
+                        type="button"
+                        onClick={() => setIsEditing(false)} 
+                        style={{ padding: '4px 12px', background: '#ecfccb', color: '#4d7c0f', border: '1px solid #bef264', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}
+                    >
+                        Done
+                    </button>
+                </div>
             </div>
             
             <div style={{ 
@@ -329,10 +442,12 @@ const KVBlock = ({ block, onUpdate, onKeyDown, mlEnabled, toggleVoice, listening
                     value={content.key || ''}
                     onChange={handleKeyChange}
                     onKeyDown={handleKeyEnter}
+                    inputRef={keyInputRef}
                     mlEnabled={mlEnabled}
                     multiLine={true}
                     placeholder="Enter Key sentence..."
-                    className="nbe-block-input"
+                    className="nbe-block-input nbe-kv-key-input"
+                    data-kv-key="true"
                     style={{ flex: 1, padding: '4px 6px', borderRadius: '6px', border: '1px solid #d1d5db', minHeight: '24px', backgroundColor: '#f9fafb', fontSize: '0.95rem' }}
                 />
                 <button
@@ -355,17 +470,59 @@ const KVBlock = ({ block, onUpdate, onKeyDown, mlEnabled, toggleVoice, listening
                                 value={v.text || ''}
                                 onChange={(val) => updateText(index, val)}
                                 onKeyDown={(e) => {
+                                    // Keyboard Shortcuts: Ctrl+Enter or Alt+K -> Create next Key-Value block
+                                    if (((e.ctrlKey || e.metaKey) && e.key === 'Enter') || (e.altKey && (e.key === 'k' || e.key === 'K'))) {
+                                        e.preventDefault();
+                                        handleAddNextKV();
+                                        return;
+                                    }
+
+                                    // Shift + Tab moves back to Key field
+                                    if (e.key === 'Tab' && e.shiftKey) {
+                                        if (index === 0) {
+                                            e.preventDefault();
+                                            if (keyInputRef.current) {
+                                                keyInputRef.current.focus();
+                                            } else {
+                                                const keyEl = document.querySelector(`[data-block-id="${block.id}"] .nbe-kv-key-input`);
+                                                if (keyEl) keyEl.focus();
+                                            }
+                                            return;
+                                        } else {
+                                            e.preventDefault();
+                                            const prevValEl = valueRefs.current[index - 1];
+                                            if (prevValEl) prevValEl.focus();
+                                            return;
+                                        }
+                                    }
+
+                                    // Tab key navigation between value items
+                                    if (e.key === 'Tab' && !e.shiftKey) {
+                                        if (index < values.length - 1) {
+                                            e.preventDefault();
+                                            const nextValEl = valueRefs.current[index + 1];
+                                            if (nextValEl) nextValEl.focus();
+                                            return;
+                                        }
+                                    }
+
                                     if (e.key === 'Enter' && !e.shiftKey) {
                                         const val = e.currentTarget.value;
                                         const cursor = e.currentTarget.selectionStart;
                                         if (cursor > 0 && val[cursor - 1] === '\n') {
                                             e.preventDefault();
-                                            updateText(index, val.slice(0, cursor - 1) + val.slice(cursor));
-                                            addValue();
-                                            setTimeout(() => {
-                                                const newIndex = values.length;
-                                                if (valueRefs.current[newIndex]) valueRefs.current[newIndex].focus();
-                                            }, 50);
+                                            const cleanedVal = val.slice(0, cursor - 1) + val.slice(cursor);
+                                            updateText(index, cleanedVal);
+                                            if (index === values.length - 1) {
+                                                // Double enter on the last value automatically adds next Key-Value block!
+                                                handleAddNextKV();
+                                            } else {
+                                                addValue();
+                                                setTimeout(() => {
+                                                    const newIndex = values.length;
+                                                    if (valueRefs.current[newIndex]) valueRefs.current[newIndex].focus();
+                                                }, 50);
+                                            }
                                         }
                                     }
                                 }}
@@ -373,7 +530,8 @@ const KVBlock = ({ block, onUpdate, onKeyDown, mlEnabled, toggleVoice, listening
                                 mlEnabled={mlEnabled}
                                 multiLine={true}
                                 placeholder="Enter Text Value..."
-                                className="nbe-block-input"
+                                className="nbe-block-input nbe-kv-value-input"
+                                data-kv-value="true"
                                 style={{ flex: 1, width: '100%', padding: '4px 6px', borderRadius: '6px', border: '1px solid #e5e7eb', minHeight: '24px', backgroundColor: '#ffffff', fontSize: '0.95rem' }}
                             />
                             <button
@@ -580,8 +738,8 @@ const NoteBlockEditor = ({ note, subject, subfolder, subtopic: subtopicProp, par
     const [isSaving, setIsSaving] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
 
-    // Malayalam panel
-    const [mlEnabled, setMlEnabled] = useState(false);
+    // Malayalam panel (default ON)
+    const [mlEnabled, setMlEnabled] = useState(true);
     const [mlText, setMlText] = useState('');
     const [mlTarget, setMlTarget] = useState(null); // { blockId, field? }
     const mlInputRef = useRef(null);
@@ -594,6 +752,107 @@ const NoteBlockEditor = ({ note, subject, subfolder, subtopic: subtopicProp, par
     const [dragId, setDragId] = useState(null);
     const [dragOverId, setDragOverId] = useState(null);
 
+    // ── OCR & File Drop state ────────────────────────────────────
+    const { extractCanvasesFromPDF, runOCRKeyValues, extractKeyValuesFromFile, isExtracting, ocrProgress, ocrError } = useImageOCR();
+    const [isFileDragOver, setIsFileDragOver] = useState(false);
+    const [showOcrModal, setShowOcrModal] = useState(false);
+    const [ocrStep, setOcrStep] = useState('pages'); // 'pages' | 'review'
+    const [pdfPages, setPdfPages] = useState([]);
+    const [selectedPdfPages, setSelectedPdfPages] = useState([]);
+    const [extractedKeyValues, setExtractedKeyValues] = useState([]); // [{ key, value, selected }]
+    const fileInputRef = useRef(null);
+
+    const handleFileDrop = async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsFileDragOver(false);
+
+        const file = e.dataTransfer?.files?.[0];
+        if (!file) return;
+        await processUploadedFile(file);
+    };
+
+    const processUploadedFile = async (file) => {
+        const isImage = file.type.startsWith('image/');
+        const isPDF = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+
+        if (!isImage && !isPDF) {
+            alert('Please drop or select an image (PNG, JPEG, WEBP…) or a PDF file.');
+            return;
+        }
+
+        if (isPDF) {
+            const canvases = await extractCanvasesFromPDF(file);
+            if (canvases.length > 0) {
+                setPdfPages(canvases);
+                setSelectedPdfPages(new Array(canvases.length).fill(true));
+                setOcrStep('pages');
+                setShowOcrModal(true);
+            }
+        } else {
+            // Direct Image extraction
+            const parsed = await extractKeyValuesFromFile(file);
+            if (parsed && parsed.length > 0) {
+                setExtractedKeyValues(parsed.map(p => ({ ...p, selected: true })));
+                setOcrStep('review');
+                setShowOcrModal(true);
+            } else {
+                alert('No key-value pairs could be detected in this image. Try a clearer image or check the file.');
+            }
+        }
+    };
+
+    const handleProceedPdfOcr = async () => {
+        const selectedCanvases = pdfPages.filter((_, idx) => selectedPdfPages[idx]);
+        if (selectedCanvases.length === 0) {
+            alert('Please select at least one page to process.');
+            return;
+        }
+
+        const results = await runOCRKeyValues(selectedCanvases);
+        if (results && results.length > 0) {
+            setExtractedKeyValues(results.map(p => ({ ...p, selected: true })));
+            setOcrStep('review');
+        } else {
+            alert('No key-value pairs could be detected on the selected pages.');
+        }
+    };
+
+    const togglePdfPageSelection = useCallback((idx) => {
+        setSelectedPdfPages(prev => {
+            const next = [...prev];
+            next[idx] = !next[idx];
+            return next;
+        });
+    }, []);
+
+    const handleInsertKeyValues = () => {
+        const toAdd = extractedKeyValues.filter(p => p.selected && (p.key.trim() || p.value.trim()));
+        if (toAdd.length === 0) {
+            alert('No items selected to insert.');
+            return;
+        }
+
+        const newKvBlocks = toAdd.map(item => ({
+            id: uuidv4(),
+            type: 'key-value',
+            content: {
+                key: item.key.trim(),
+                values: [{ text: item.value.trim(), image: '' }]
+            },
+            order: 0,
+            autoFocus: false
+        }));
+
+        setBlocks(prev => {
+            const combined = [...prev, ...newKvBlocks];
+            return combined.map((b, idx) => ({ ...b, order: idx }));
+        });
+
+        setShowOcrModal(false);
+        setExtractedKeyValues([]);
+    };
+
     // ── Block CRUD ───────────────────────────────────────────────
     const addBlock = useCallback((type, afterId = null) => {
         setListeningBlockId(prev => {
@@ -605,8 +864,9 @@ const NoteBlockEditor = ({ note, subject, subfolder, subtopic: subtopicProp, par
         const newBlock = {
             id: uuidv4(),
             type,
-            content: type === 'key-value' ? { key: '', values: [] } : type === 'image' ? {} : '',
+            content: type === 'key-value' ? { key: '', values: [{ text: '', image: '' }] } : type === 'image' ? {} : '',
             order: 0,
+            autoFocus: true,
         };
         setBlocks(prev => {
             let newBlocks;
@@ -620,10 +880,20 @@ const NoteBlockEditor = ({ note, subject, subfolder, subtopic: subtopicProp, par
             return newBlocks.map((b, i) => ({ ...b, order: i }));
         });
         setShowMenu(false);
-        // Focus the new block after render
+        // Focus the new block's primary input/key after render
         setTimeout(() => {
-            const el = document.querySelector(`[data-block-id="${newBlock.id}"] textarea, [data-block-id="${newBlock.id}"] input`);
-            if (el) el.focus();
+            const el = document.querySelector(
+                `[data-block-id="${newBlock.id}"] .nbe-kv-key-input, ` +
+                `[data-block-id="${newBlock.id}"] textarea:not([style*="display: none"]), ` +
+                `[data-block-id="${newBlock.id}"] input:not([type="file"]):not([type="hidden"])`
+            );
+            if (el) {
+                el.focus();
+                const len = el.value ? el.value.length : 0;
+                if (el.setSelectionRange) {
+                    el.setSelectionRange(len, len);
+                }
+            }
         }, 50);
     }, []);
 
@@ -641,6 +911,23 @@ const NoteBlockEditor = ({ note, subject, subfolder, subtopic: subtopicProp, par
 
     const handleEnterKey = useCallback((blockId, blockType) => {
         addBlock(blockType, blockId);
+    }, [addBlock]);
+
+    // Global keyboard shortcuts for adding key-value blocks
+    useEffect(() => {
+        const handleGlobalKeyDown = (e) => {
+            // Alt + K or Ctrl + Shift + K: quick-add key-value block anywhere in the editor
+            if ((e.altKey && (e.key === 'k' || e.key === 'K')) || ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'k' || e.key === 'K'))) {
+                e.preventDefault();
+                const activeEl = document.activeElement;
+                const closestBlock = activeEl ? activeEl.closest('[data-block-id]') : null;
+                const activeBlockId = closestBlock ? closestBlock.getAttribute('data-block-id') : null;
+                addBlock('key-value', activeBlockId);
+            }
+        };
+
+        window.addEventListener('keydown', handleGlobalKeyDown);
+        return () => window.removeEventListener('keydown', handleGlobalKeyDown);
     }, [addBlock]);
 
     // ── Drag & Drop ──────────────────────────────────────────────
@@ -777,6 +1064,16 @@ const NoteBlockEditor = ({ note, subject, subfolder, subtopic: subtopicProp, par
             if (isEdit) {
                 noteObj._id = note._id;
                 await updateNotes(noteObj);
+                if (note._mergedIds && note._mergedIds.length > 1) {
+                    const otherIds = note._mergedIds.filter(id => id !== note._id);
+                    for (const otherId of otherIds) {
+                        try {
+                            await deleteNote(otherId);
+                        } catch (cleanErr) {
+                            console.warn("Cleaned up merged duplicate id error:", cleanErr);
+                        }
+                    }
+                }
             } else {
                 await addNote(token, noteObj);
             }
@@ -874,7 +1171,18 @@ const NoteBlockEditor = ({ note, subject, subfolder, subtopic: subtopicProp, par
         switch (block.type) {
             case 'heading': return <HeadingBlock block={block} onUpdate={updateBlock} onUpdateField={updateBlockField} onKeyDown={handleEnterKey} mlEnabled={mlEnabled} />;
             case 'description': return <DescriptionBlock block={block} onUpdate={updateBlock} onKeyDown={handleEnterKey} mlEnabled={mlEnabled} />;
-            case 'key-value': return <KVBlock block={block} onUpdate={updateBlock} onKeyDown={handleEnterKey} mlEnabled={mlEnabled} toggleVoice={toggleVoice} listeningBlockId={listeningBlockId} onDelete={() => removeBlock(block.id)} />;
+            case 'key-value': return (
+                <KVBlock 
+                    block={block} 
+                    onUpdate={updateBlock} 
+                    onKeyDown={handleEnterKey} 
+                    mlEnabled={mlEnabled} 
+                    toggleVoice={toggleVoice} 
+                    listeningBlockId={listeningBlockId} 
+                    onDelete={() => removeBlock(block.id)} 
+                    onAddNext={() => addBlock('key-value', block.id)} 
+                />
+            );
             case 'point': return <PointBlock block={block} onUpdate={updateBlock} onKeyDown={handleEnterKey} mlEnabled={mlEnabled} />;
             case 'image': return <ImageBlock block={block} onUpdate={updateBlock} />;
             case 'review': return <ReviewBlock block={block} onUpdate={updateBlock} mlEnabled={mlEnabled} />;
@@ -894,9 +1202,43 @@ const NoteBlockEditor = ({ note, subject, subfolder, subtopic: subtopicProp, par
                     <button
                         className={`nbe-ml-toggle ${mlEnabled ? 'active' : ''}`}
                         onClick={() => setMlEnabled(!mlEnabled)}
-                        title={mlEnabled ? 'Malayalam ON' : 'Malayalam OFF'}
+                        title={mlEnabled ? 'Malayalam typing ON (Click to switch to English)' : 'Malayalam typing OFF (Click to switch to Malayalam)'}
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            background: mlEnabled ? '#ecfdf5' : '#f8fafc',
+                            border: `1px solid ${mlEnabled ? '#10b981' : '#cbd5e1'}`,
+                            padding: '6px 12px',
+                            borderRadius: '8px',
+                            cursor: 'pointer',
+                            fontSize: '0.85rem',
+                            fontWeight: '600',
+                            color: mlEnabled ? '#059669' : '#64748b',
+                            transition: 'all 0.2s ease'
+                        }}
                     >
-                        <IonIcon icon={languageOutline} />
+                        <IonIcon icon={languageOutline} style={{ fontSize: '1.1rem' }} />
+                        <span>{mlEnabled ? 'മലയാളം (ML)' : 'English (EN)'}</span>
+                    </button>
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        accept="image/*,application/pdf"
+                        style={{ display: 'none' }}
+                        onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) processUploadedFile(file);
+                            e.target.value = '';
+                        }}
+                    />
+                    <button
+                        className="nbe-ocr-btn"
+                        onClick={() => fileInputRef.current?.click()}
+                        title="Upload an Image or PDF to auto-extract Key-Value pairs"
+                    >
+                        <IonIcon icon={cloudUploadOutline} style={{ fontSize: '1.1rem' }} />
+                        <span>OCR Image / PDF</span>
                     </button>
                     <button className="nbe-cancel-btn" onClick={handleGenerateStudyMaterial} disabled={isGenerating} style={{ color: '#059669', borderColor: '#34d399', background: '#ecfdf5' }}>
                         {isGenerating ? <Loader size={18} /> : <><IonIcon icon={documentTextOutline} /> Generate Material</>}
@@ -939,12 +1281,45 @@ const NoteBlockEditor = ({ note, subject, subfolder, subtopic: subtopicProp, par
                 )}
             </div>
 
+            {/* Drop Banner */}
+            <div
+                className={`nbe-drop-banner ${isFileDragOver ? 'dragging' : ''}`}
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={(e) => { e.preventDefault(); setIsFileDragOver(true); }}
+                onDragLeave={(e) => { e.preventDefault(); setIsFileDragOver(false); }}
+                onDrop={handleFileDrop}
+            >
+                <IonIcon icon={cloudUploadOutline} />
+                <div>
+                    <strong>Drop Image / PDF here</strong> or click to browse (auto-extracts Key-Value pairs with Malayalam OCR)
+                </div>
+            </div>
+
             {/* Blocks area */}
-            <div className="nbe-blocks-area">
+            <div
+                className={`nbe-blocks-area ${isFileDragOver ? 'dragging' : ''}`}
+                onDragOver={(e) => {
+                    if (e.dataTransfer.types && Array.from(e.dataTransfer.types).includes('Files')) {
+                        e.preventDefault();
+                        setIsFileDragOver(true);
+                    }
+                }}
+                onDragLeave={(e) => {
+                    if (e.dataTransfer.types && Array.from(e.dataTransfer.types).includes('Files')) {
+                        e.preventDefault();
+                        setIsFileDragOver(false);
+                    }
+                }}
+                onDrop={(e) => {
+                    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                        handleFileDrop(e);
+                    }
+                }}
+            >
                 {blocks.length === 0 && (
                     <div className="nbe-blocks-empty">
                         <IonIcon icon={addOutline} />
-                        <div>Start adding content blocks below</div>
+                        <div>Start adding content blocks below or drop an Image/PDF to extract Key-Values</div>
                     </div>
                 )}
 
@@ -1020,8 +1395,287 @@ const NoteBlockEditor = ({ note, subject, subfolder, subtopic: subtopicProp, par
                     <button className="nbe-add-block-btn" onClick={() => setShowMenu(!showMenu)}>
                         <IonIcon icon={addOutline} /> Add Block
                     </button>
+                    <button
+                        className="nbe-add-block-btn"
+                        onClick={() => addBlock('key-value')}
+                        title="Add Key-Value Block (Alt + K or Ctrl + Shift + K)"
+                        style={{
+                            background: '#f5f3ff',
+                            color: '#4f46e5',
+                            borderColor: '#c7d2fe',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            fontWeight: '600'
+                        }}
+                    >
+                        <span>🔑 + Key-Value</span>
+                        <kbd style={{
+                            fontSize: '0.72rem',
+                            background: '#ffffff',
+                            padding: '1px 5px',
+                            borderRadius: '4px',
+                            border: '1px solid #c7d2fe',
+                            color: '#4338ca'
+                        }}>Alt+K</kbd>
+                    </button>
                 </div>
             </div>
+
+            {/* ── 2-Step OCR Verification Modal ────────────────────── */}
+            {showOcrModal && (
+                <div className="nbe-ocr-modal-overlay" onClick={() => { if (!isExtracting) setShowOcrModal(false); }}>
+                    <div className="nbe-ocr-modal" onClick={e => e.stopPropagation()}>
+                        {/* Modal Header */}
+                        <div className="nbe-ocr-modal-header">
+                            <h3>
+                                {ocrStep === 'review' && pdfPages.length > 0 && (
+                                    <IonIcon
+                                        icon={chevronBackOutline}
+                                        style={{ cursor: 'pointer', fontSize: '1.2rem', marginRight: '4px' }}
+                                        onClick={() => setOcrStep('pages')}
+                                        title="Back to page selection"
+                                    />
+                                )}
+                                <IonIcon icon={cloudUploadOutline} style={{ color: '#4f46e5' }} />
+                                {ocrStep === 'pages' ? 'Select PDF Pages for Extraction' : 'Review Extracted Key-Value Pairs'}
+                            </h3>
+                            <button
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.3rem', color: '#64748b' }}
+                                onClick={() => { if (!isExtracting) setShowOcrModal(false); }}
+                            >
+                                ✕
+                            </button>
+                        </div>
+
+                        {/* Step indicator */}
+                        {pdfPages.length > 0 && (
+                            <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', padding: '10px 20px 0', background: '#f8fafc' }}>
+                                <div style={{ width: '45%', height: '4px', borderRadius: '2px', background: '#3b82f6', opacity: ocrStep === 'pages' ? 1 : 0.3, transition: 'opacity 0.3s' }} />
+                                <div style={{ width: '45%', height: '4px', borderRadius: '2px', background: '#3b82f6', opacity: ocrStep === 'review' ? 1 : 0.3, transition: 'opacity 0.3s' }} />
+                            </div>
+                        )}
+
+                        {/* Modal Body */}
+                        <div className="nbe-ocr-modal-body">
+                            {isExtracting ? (
+                                <div className="nbe-ocr-progress-box">
+                                    <Loader size={36} />
+                                    <div style={{ fontWeight: 600, color: '#1e293b' }}>
+                                        {ocrProgress > 0 ? `Recognizing text with OCR (${ocrProgress}%)…` : 'Processing document…'}
+                                    </div>
+                                    <div className="nbe-ocr-progress-bar-bg">
+                                        <div className="nbe-ocr-progress-bar-fill" style={{ width: `${ocrProgress}%` }} />
+                                    </div>
+                                    <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
+                                        Extracting Malayalam and English key-value pairs…
+                                    </div>
+                                </div>
+                            ) : ocrStep === 'pages' ? (
+                                <>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                                        <p style={{ margin: 0, color: '#64748b', fontSize: '0.9rem' }}>
+                                            Select pages to extract. Uncheck pages you don't need to speed up OCR.
+                                        </p>
+                                        <div style={{ display: 'flex', gap: '8px' }}>
+                                            <button
+                                                className="nbe-cancel-btn"
+                                                style={{ padding: '4px 10px', fontSize: '0.8rem' }}
+                                                onClick={() => setSelectedPdfPages(new Array(pdfPages.length).fill(true))}
+                                            >
+                                                Select All
+                                            </button>
+                                            <button
+                                                className="nbe-cancel-btn"
+                                                style={{ padding: '4px 10px', fontSize: '0.8rem' }}
+                                                onClick={() => setSelectedPdfPages(prev => prev.map(v => !v))}
+                                            >
+                                                Invert
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '14px' }}>
+                                        {pdfPages.map((dataUrl, idx) => (
+                                            <PdfPageCard
+                                                key={idx}
+                                                idx={idx}
+                                                dataUrl={dataUrl}
+                                                isSelected={selectedPdfPages[idx]}
+                                                onToggle={togglePdfPageSelection}
+                                            />
+                                        ))}
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+                                        <p style={{ margin: 0, color: '#64748b', fontSize: '0.85rem' }}>
+                                            {extractedKeyValues.length} pair{extractedKeyValues.length !== 1 ? 's' : ''} detected. Check items to import, edit text inline, or delete unwanted pairs.
+                                        </p>
+                                        <div style={{ display: 'flex', gap: '8px' }}>
+                                            <button
+                                                className="nbe-cancel-btn"
+                                                style={{ padding: '4px 10px', fontSize: '0.8rem' }}
+                                                onClick={() => setExtractedKeyValues(prev => prev.map(p => ({ ...p, selected: true })))}
+                                            >
+                                                Select All
+                                            </button>
+                                            <button
+                                                className="nbe-cancel-btn"
+                                                style={{ padding: '4px 10px', fontSize: '0.8rem' }}
+                                                onClick={() => setExtractedKeyValues(prev => prev.map(p => ({ ...p, selected: false })))}
+                                            >
+                                                Deselect All
+                                            </button>
+                                            <button
+                                                className="nbe-cancel-btn"
+                                                style={{ padding: '4px 10px', fontSize: '0.8rem', color: '#4f46e5', borderColor: '#c7d2fe' }}
+                                                onClick={() => setExtractedKeyValues(prev => [...prev, { key: '', value: '', selected: true }])}
+                                            >
+                                                + Add Pair
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {extractedKeyValues.length === 0 ? (
+                                        <div style={{ textAlign: 'center', padding: '40px 20px', color: '#94a3b8' }}>
+                                            No key-value pairs to display.
+                                        </div>
+                                    ) : (
+                                        <div>
+                                            {extractedKeyValues.map((pair, idx) => (
+                                                <div key={idx} className={`nbe-ocr-pair-card ${pair.selected ? 'selected' : ''}`}>
+                                                    <div style={{ paddingTop: '8px' }}>
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={pair.selected}
+                                                            onChange={(e) => {
+                                                                const checked = e.target.checked;
+                                                                setExtractedKeyValues(prev => {
+                                                                    const next = [...prev];
+                                                                    next[idx] = { ...next[idx], selected: checked };
+                                                                    return next;
+                                                                });
+                                                            }}
+                                                            style={{ cursor: 'pointer', width: '18px', height: '18px' }}
+                                                        />
+                                                    </div>
+
+                                                    <div className="nbe-ocr-pair-inputs">
+                                                        <div>
+                                                            <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>
+                                                                Key / Fact Prompt
+                                                            </label>
+                                                            <MlInput
+                                                                value={pair.key}
+                                                                onChange={(val) => {
+                                                                    setExtractedKeyValues(prev => {
+                                                                        const next = [...prev];
+                                                                        next[idx] = { ...next[idx], key: val };
+                                                                        return next;
+                                                                    });
+                                                                }}
+                                                                placeholder="Enter key / question prompt..."
+                                                                mlEnabled={mlEnabled}
+                                                                multiLine={true}
+                                                                className="nbe-ocr-input-field"
+                                                            />
+                                                        </div>
+
+                                                        <div>
+                                                            <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>
+                                                                Value / Answer
+                                                            </label>
+                                                            <MlInput
+                                                                value={pair.value}
+                                                                onChange={(val) => {
+                                                                    setExtractedKeyValues(prev => {
+                                                                        const next = [...prev];
+                                                                        next[idx] = { ...next[idx], value: val };
+                                                                        return next;
+                                                                    });
+                                                                }}
+                                                                placeholder="Enter value / answer..."
+                                                                mlEnabled={mlEnabled}
+                                                                multiLine={true}
+                                                                className="nbe-ocr-input-field"
+                                                            />
+                                                        </div>
+                                                    </div>
+
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                        <button
+                                                            className="nbe-block-action-btn"
+                                                            title="Add key-value pair below"
+                                                            onClick={() => {
+                                                                setExtractedKeyValues(prev => {
+                                                                    const next = [...prev];
+                                                                    next.splice(idx + 1, 0, { key: '', value: '', selected: true });
+                                                                    return next;
+                                                                });
+                                                            }}
+                                                            style={{ color: '#4f46e5' }}
+                                                        >
+                                                            <IonIcon icon={addOutline} />
+                                                        </button>
+                                                        <button
+                                                            className="nbe-block-action-btn"
+                                                            title="Delete pair"
+                                                            onClick={() => {
+                                                                setExtractedKeyValues(prev => prev.filter((_, i) => i !== idx));
+                                                            }}
+                                                            style={{ color: '#ef4444' }}
+                                                        >
+                                                            <IonIcon icon={trashOutline} />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="nbe-ocr-modal-footer">
+                            {ocrStep === 'pages' ? (
+                                <>
+                                    <button className="nbe-cancel-btn" onClick={() => setShowOcrModal(false)}>
+                                        Cancel
+                                    </button>
+                                    <button
+                                        className="nbe-save-btn"
+                                        onClick={handleProceedPdfOcr}
+                                        disabled={isExtracting || !selectedPdfPages.some(Boolean)}
+                                    >
+                                        {isExtracting ? <><Loader size={16} /> Processing OCR…</> : 'Extract Selected Pages →'}
+                                    </button>
+                                </>
+                            ) : (
+                                <>
+                                    <button
+                                        className="nbe-cancel-btn"
+                                        onClick={() => {
+                                            if (pdfPages.length > 0) setOcrStep('pages');
+                                            else setShowOcrModal(false);
+                                        }}
+                                    >
+                                        {pdfPages.length > 0 ? '← Back to Pages' : 'Cancel'}
+                                    </button>
+                                    <button
+                                        className="nbe-save-btn"
+                                        onClick={handleInsertKeyValues}
+                                        disabled={extractedKeyValues.filter(p => p.selected && (p.key.trim() || p.value.trim())).length === 0}
+                                    >
+                                        Insert {extractedKeyValues.filter(p => p.selected && (p.key.trim() || p.value.trim())).length} Pairs into Note
+                                    </button>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

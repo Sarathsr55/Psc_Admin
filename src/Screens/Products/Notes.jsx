@@ -12,6 +12,171 @@ import { getAllSubjects, addSubject, addSubfolder, deleteSubject, deleteSubfolde
 import { getAllFolders, addFolder, deleteFolder, updateFolder } from '../../services/folders';
 import { Loader } from '../../Components/Loader/Loader';
 
+// Helper to get reliable creation timestamp (createdAt or MongoDB ObjectId timestamp)
+const getNoteTimestamp = (note) => {
+    if (note?.createdAt) {
+        const t = new Date(note.createdAt).getTime();
+        if (!isNaN(t) && t > 0) return t;
+    }
+    if (note?._id && typeof note._id === 'string' && note._id.length === 24) {
+        const t = parseInt(note._id.substring(0, 8), 16) * 1000;
+        if (!isNaN(t) && t > 0) return t;
+    }
+    return 0;
+};
+
+// Helper to get nested folder breadcrumb path name
+const getFolderPathName = (folder, allFolders) => {
+    let path = folder.name;
+    let curr = folder;
+    const visited = new Set([folder._id]);
+    while (curr && curr.parentFolderId && !visited.has(curr.parentFolderId)) {
+        visited.add(curr.parentFolderId);
+        const parent = allFolders.find(f => f._id === curr.parentFolderId);
+        if (parent) {
+            path = `${parent.name} / ${path}`;
+            curr = parent;
+        } else {
+            break;
+        }
+    }
+    return path;
+};
+
+const convertLegacyToBlocks = (note) => {
+    if (note.blocks && note.blocks.length > 0) return note.blocks;
+    const blocks = [];
+    let order = 0;
+    if (note.description) {
+        blocks.push({ id: `desc_${note._id || Math.random()}`, type: 'description', content: note.description, order: order++ });
+    }
+    const subheads = note.flashcards || note.subheading || [];
+    if (subheads && subheads.length > 0) {
+        subheads.forEach((sh, idx) => {
+            let values = sh.values || [];
+            if (values.length === 0 && sh.value) {
+                if (Array.isArray(sh.value)) values = sh.value;
+                else if (typeof sh.value === 'string') {
+                    values = sh.value.split('\n').filter(l => l.trim() !== '').map(l => ({ text: l, image: '' }));
+                }
+            }
+            blocks.push({
+                id: `kv_${note._id || Math.random()}_${idx}`,
+                type: 'key-value',
+                content: { key: sh.key, value: sh.value, values, image: sh.image, imageAlign: sh.imageAlign },
+                order: order++
+            });
+        });
+    }
+    if (note.points && note.points.length > 0) {
+        note.points.forEach((p, idx) => {
+            blocks.push({ id: `pt_${note._id || Math.random()}_${idx}`, type: 'point', content: p, order: order++ });
+        });
+    }
+    if (note.review) {
+        blocks.push({ id: `rev_${note._id || Math.random()}`, type: 'review', content: note.review, order: order++ });
+    }
+    return blocks;
+};
+
+const mergeAndArrangeNotes = (notesList) => {
+    if (!notesList || notesList.length === 0) return [];
+
+    // 1. Sort notes chronologically by created date (oldest first)
+    const sortedNotes = [...notesList].sort((a, b) => getNoteTimestamp(a) - getNoteTimestamp(b));
+
+    // 2. Merge same heading notes into a single note in chronological order
+    const mergedMap = {};
+    sortedNotes.forEach(note => {
+        const rawHeading = (note.heading || '').trim();
+        const headingKey = rawHeading ? rawHeading.toLowerCase() : `_untitled_${note._id || Math.random()}`;
+
+        if (!mergedMap[headingKey]) {
+            mergedMap[headingKey] = {
+                ...note,
+                heading: rawHeading || 'Untitled Note',
+                blocks: note.blocks ? [...note.blocks] : [],
+                flashcards: Array.isArray(note.flashcards) ? [...note.flashcards] : (Array.isArray(note.subheading) ? [...note.subheading] : []),
+                subheading: Array.isArray(note.subheading) ? [...note.subheading] : [],
+                points: Array.isArray(note.points) ? [...note.points] : [],
+                description: note.description || '',
+                review: note.review || '',
+                isPinned: !!(note.isPinned || note.pinned),
+                pinned: !!(note.isPinned || note.pinned),
+                _firstCreated: getNoteTimestamp(note),
+                _mergedIds: note._id ? [note._id] : []
+            };
+        } else {
+            const existing = mergedMap[headingKey];
+            if (note._id && !existing._mergedIds.includes(note._id)) {
+                existing._mergedIds.push(note._id);
+            }
+
+            // Merge blocks in chronological order
+            const existingHasBlocks = existing.blocks && existing.blocks.length > 0;
+            const newHasBlocks = note.blocks && note.blocks.length > 0;
+
+            if (existingHasBlocks && newHasBlocks) {
+                const maxOrder = existing.blocks.reduce((m, b) => Math.max(m, b.order || 0), -1);
+                const newBlocks = note.blocks.map((b, i) => ({ ...b, order: maxOrder + 1 + i }));
+                existing.blocks = [...existing.blocks, ...newBlocks];
+            } else if (existingHasBlocks && !newHasBlocks) {
+                const converted = convertLegacyToBlocks(note);
+                const maxOrder = existing.blocks.reduce((m, b) => Math.max(m, b.order || 0), -1);
+                const newBlocks = converted.map((b, i) => ({ ...b, order: maxOrder + 1 + i }));
+                existing.blocks = [...existing.blocks, ...newBlocks];
+            } else if (!existingHasBlocks && newHasBlocks) {
+                const convertedExisting = convertLegacyToBlocks(existing);
+                const maxOrder = convertedExisting.reduce((m, b) => Math.max(m, b.order || 0), -1);
+                const newBlocks = note.blocks.map((b, i) => ({ ...b, order: maxOrder + 1 + i }));
+                existing.blocks = [...convertedExisting, ...newBlocks];
+            }
+
+            // Merge Flashcards/Subheadings
+            const existingSubs = existing.flashcards || existing.subheading || [];
+            const newSubs = note.flashcards || note.subheading || [];
+            if (newSubs.length > 0) {
+                existing.flashcards = [...existingSubs, ...newSubs];
+                existing.subheading = [...(existing.subheading || []), ...newSubs];
+            }
+
+            // Merge Points
+            if (note.points && note.points.length > 0) {
+                existing.points = [...(existing.points || []), ...note.points];
+            }
+
+            // Merge Descriptions
+            if (note.description && note.description.trim()) {
+                if (!existing.description) {
+                    existing.description = note.description;
+                } else if (!existing.description.includes(note.description.trim())) {
+                    existing.description = `${existing.description}\n\n${note.description}`;
+                }
+            }
+
+            // Merge Review
+            if (note.review && !existing.review?.includes(note.review)) {
+                existing.review = existing.review ? `${existing.review}\n\n${note.review}` : note.review;
+            }
+
+            if (note.pinned || note.isPinned) {
+                existing.pinned = true;
+                existing.isPinned = true;
+            }
+        }
+    });
+
+    // 3. Arrange resulting notes in order of created date (pinned first, then oldest first)
+    return Object.values(mergedMap).sort((a, b) => {
+        const aPinned = (a.pinned || a.isPinned) ? 1 : 0;
+        const bPinned = (b.pinned || b.isPinned) ? 1 : 0;
+        if (bPinned !== aPinned) {
+            return bPinned - aPinned;
+        }
+        return (a._firstCreated || getNoteTimestamp(a)) - (b._firstCreated || getNoteTimestamp(b));
+    });
+};
+
 const Notes = () => {
     const [view, setView] = useState('subjects'); // 'subjects', 'subfolders', 'folder_contents', 'editor'
     const [selectedSubject, setSelectedSubject] = useState(null);
@@ -37,6 +202,7 @@ const Notes = () => {
     const [movePopup, setMovePopup] = useState(null);
     const [moveDestSubject, setMoveDestSubject] = useState('');
     const [moveDestTopic, setMoveDestTopic] = useState('');
+    const [moveDestFolderId, setMoveDestFolderId] = useState(null);
     const [isSaving, setIsSaving] = useState(false);
 
     const [showFolderModal, setShowFolderModal] = useState(false);
@@ -176,18 +342,30 @@ const Notes = () => {
 
     const handleTogglePin = async (e, note) => {
         e.stopPropagation();
+        const newPinned = !note.isPinned;
         try {
-            await updateNotes({ ...note, isPinned: !note.isPinned });
+            const idsToUpdate = note._mergedIds && note._mergedIds.length > 0 ? note._mergedIds : [note._id];
+            for (const id of idsToUpdate) {
+                const orig = allNotes.find(n => n._id === id);
+                await updateNotes({ ...(orig || { _id: id }), isPinned: newPinned });
+            }
             fetchData(false);
         } catch (error) {
             alert("Failed to pin note");
         }
     };
 
-    const handleDeleteNote = async (noteId) => {
+    const handleDeleteNote = async (noteItem) => {
         setIsDeleting(true);
         try {
-            await deleteNote(noteId);
+            if (typeof noteItem === 'object' && noteItem !== null) {
+                const idsToDelete = noteItem._mergedIds && noteItem._mergedIds.length > 0 ? noteItem._mergedIds : [noteItem._id];
+                for (const id of idsToDelete) {
+                    await deleteNote(id);
+                }
+            } else {
+                await deleteNote(noteItem);
+            }
             setDeletePopup(null);
             fetchData(false);
         } catch (err) {
@@ -201,7 +379,21 @@ const Notes = () => {
         if (!movePopup || !moveDestSubject || !moveDestTopic) { alert("Please provide both a Subject and a Topic"); return; }
         setIsSaving(true);
         try {
-            await updateNotes({ ...movePopup, subject: moveDestSubject, topic: moveDestTopic, parentFolderId: null });
+            const idsToMove = movePopup._mergedIds && movePopup._mergedIds.length > 0 ? movePopup._mergedIds : [movePopup._id];
+            const targetFolderId = folders.some(f => f._id === moveDestFolderId && 
+                (f.subject || '').trim().toLowerCase() === moveDestSubject.trim().toLowerCase() && 
+                (f.topic || '').trim().toLowerCase() === moveDestTopic.trim().toLowerCase()
+            ) ? moveDestFolderId : null;
+
+            for (const id of idsToMove) {
+                const noteObj = allNotes.find(n => n._id === id) || { _id: id };
+                await updateNotes({ 
+                    ...noteObj, 
+                    subject: moveDestSubject.trim(), 
+                    topic: moveDestTopic.trim(), 
+                    parentFolderId: targetFolderId 
+                });
+            }
             setMovePopup(null);
             fetchData(false);
         } catch (error) {
@@ -253,13 +445,22 @@ const Notes = () => {
         }
     };
 
-    const handleDropNote = async (noteId, targetFolderId) => {
-        const noteToMove = allNotes.find(n => n._id === noteId);
-        if (!noteToMove) return;
-        if (noteToMove.parentFolderId === targetFolderId) return; // already there
-        
+    const handleDropNote = async (noteData, targetFolderId) => {
+        let noteIds = [];
+        if (typeof noteData === 'object' && noteData.ids) {
+            noteIds = noteData.ids;
+        } else if (typeof noteData === 'object' && noteData.id) {
+            noteIds = [noteData.id];
+        } else if (typeof noteData === 'string') {
+            noteIds = [noteData];
+        }
         try {
-            await updateNotes({ ...noteToMove, parentFolderId: targetFolderId });
+            for (const id of noteIds) {
+                const n = allNotes.find(item => item._id === id);
+                if (n && n.parentFolderId !== targetFolderId) {
+                    await updateNotes({ ...n, parentFolderId: targetFolderId });
+                }
+            }
             fetchData(false);
         } catch (error) {
             alert("Failed to move note");
@@ -290,19 +491,22 @@ const Notes = () => {
 
     const getFilteredNotes = () => {
         if (!selectedSubject || !selectedSubfolder) return [];
+        let filtered = [];
         if (selectedSubject.name === 'Uncategorized') {
-            return allNotes.filter(n => !(n.subject || '').trim());
+            filtered = allNotes.filter(n => !(n.subject || '').trim());
+        } else {
+            filtered = allNotes.filter(n => {
+                if (!n.subject) return false;
+                const matchesSubject = n.subject.trim().toLowerCase() === selectedSubject.name.trim().toLowerCase();
+                const noteTopic = (n.topic || '').trim();
+                const selectedTopicName = (selectedSubfolder.name || '').trim();
+                const matchesTopic = noteTopic.toLowerCase() === selectedTopicName.toLowerCase();
+                const matchesFolder = (n.parentFolderId || null) === currentFolderId;
+                
+                return matchesSubject && matchesTopic && matchesFolder;
+            });
         }
-        return allNotes.filter(n => {
-            if (!n.subject) return false;
-            const matchesSubject = n.subject.trim().toLowerCase() === selectedSubject.name.trim().toLowerCase();
-            const noteTopic = (n.topic || '').trim();
-            const selectedTopicName = (selectedSubfolder.name || '').trim();
-            const matchesTopic = noteTopic.toLowerCase() === selectedTopicName.toLowerCase();
-            const matchesFolder = (n.parentFolderId || null) === currentFolderId;
-            
-            return matchesSubject && matchesTopic && matchesFolder;
-        });
+        return mergeAndArrangeNotes(filtered);
     };
 
     // ── Render: Subjects ─────────────────────────────────────────
@@ -426,9 +630,18 @@ const Notes = () => {
                         </button>
                         <h2 style={{ margin: 0, color: '#1e293b', fontSize: '1.3rem' }}>{selectedSubject.name} / Topics</h2>
                     </div>
-                    <button className="notes-btn notes-btn-primary" style={{ width: 'auto', display: 'flex', alignItems: 'center', gap: '6px' }} onClick={() => setShowSubfolderModal(true)}>
-                        <IonIcon icon={addOutline} /> Add Topic
-                    </button>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                        <button className="notes-btn" style={{ width: 'auto', display: 'flex', alignItems: 'center', gap: '6px', background: '#f1f5f9', color: '#334155' }} onClick={() => {
+                            setSelectedNote(null);
+                            setSelectedSubfolder(null);
+                            setView('editor');
+                        }}>
+                            <IonIcon icon={addOutline} /> Create Note
+                        </button>
+                        <button className="notes-btn notes-btn-primary" style={{ width: 'auto', display: 'flex', alignItems: 'center', gap: '6px' }} onClick={() => setShowSubfolderModal(true)}>
+                            <IonIcon icon={addOutline} /> Add Topic
+                        </button>
+                    </div>
                 </div>
 
                 {(selectedSubject.subfolders?.length || 0) === 0 ? (
@@ -460,16 +673,16 @@ const Notes = () => {
                 
                 {/* Notes without a topic in this subject */}
                 {(() => {
-                    const notesWithoutTopic = allNotes.filter(n => (n.subject || '').trim().toLowerCase() === selectedSubject.name.trim().toLowerCase() && (!(n.topic || '').trim()));
-                    if (notesWithoutTopic.length === 0) return null;
+                    const rawNotesWithoutTopic = allNotes.filter(n => (n.subject || '').trim().toLowerCase() === selectedSubject.name.trim().toLowerCase() && (!(n.topic || '').trim()));
+                    if (rawNotesWithoutTopic.length === 0) return null;
                     
-                    const sortedNotesWithoutTopic = [...notesWithoutTopic].reverse().sort((a, b) => (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0));
+                    const notesWithoutTopic = mergeAndArrangeNotes(rawNotesWithoutTopic);
                     
                     return (
                         <div>
                             <h3 style={{ fontSize: '1rem', color: '#64748b', marginBottom: '16px', textTransform: 'uppercase', letterSpacing: '1px' }}>Notes in this Subject</h3>
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
-                                {sortedNotesWithoutTopic.map((obj) => {
+                                {notesWithoutTopic.map((obj) => {
                                     let previewImage = null;
                                     let previewText = obj.description || '';
                                     if (obj.blocks && obj.blocks.length > 0) {
@@ -493,10 +706,17 @@ const Notes = () => {
                                             )}
                                             <div className="folder-actions-hover" style={{ position: 'absolute', top: '12px', right: '12px', zIndex: 10, opacity: 0, display: 'flex', gap: '4px' }}>
                                                 <button className="icon-action-btn" onClick={(e) => handleTogglePin(e, obj)} title={obj.isPinned ? "Unpin Note" : "Pin Note"}><IonIcon icon={obj.isPinned ? pin : pinOutline} /></button>
-                                                <button className="icon-action-btn" onClick={(e) => { e.stopPropagation(); setMovePopup(obj); setMoveDestSubject(obj.subject || ''); setMoveDestTopic(obj.topic || ''); }} title="Move Note"><IonIcon icon={folderOpenOutline} /></button>
-                                                <button className="icon-action-btn" onClick={(e) => { e.stopPropagation(); setDeletePopup(obj._id); }} title="Delete Note"><IonIcon icon={trashOutline} /></button>
+                                                <button className="icon-action-btn" onClick={(e) => { e.stopPropagation(); setMovePopup(obj); setMoveDestSubject(obj.subject || ''); setMoveDestTopic(obj.topic || ''); setMoveDestFolderId(obj.parentFolderId || null); }} title="Move Note"><IonIcon icon={folderOpenOutline} /></button>
+                                                <button className="icon-action-btn" onClick={(e) => { e.stopPropagation(); setDeletePopup(obj); }} title="Delete Note"><IonIcon icon={trashOutline} /></button>
                                             </div>
-                                            <h3 style={{ margin: '0 0 8px 0', fontSize: '1.15rem', color: '#1e293b' }}>{obj.heading || 'Untitled'}</h3>
+                                            <h3 style={{ margin: '0 0 8px 0', fontSize: '1.15rem', color: '#1e293b', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
+                                                <span>{obj.heading || 'Untitled'}</span>
+                                                {obj._mergedIds?.length > 1 && (
+                                                    <span style={{ fontSize: '0.72rem', background: '#e0e7ff', color: '#4338ca', padding: '2px 8px', borderRadius: '10px', fontWeight: 600 }}>
+                                                        {obj._mergedIds.length} parts
+                                                    </span>
+                                                )}
+                                            </h3>
                                             <p style={{ margin: 0, fontSize: '0.9rem', color: '#64748b', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{previewText || 'Click to view / edit this note...'}</p>
                                         </div>
                                     );
@@ -600,7 +820,11 @@ const Notes = () => {
                                 <h4 style={{ margin: 0 }}>Confirm Deletion</h4>
                                 <IonIcon icon={close} style={{ cursor: 'pointer', fontSize: '1.5rem' }} onClick={() => setDeletePopup(null)} />
                             </div>
-                            <div className="notes-modal-body">Delete this note?</div>
+                            <div className="notes-modal-body">
+                                {deletePopup._mergedIds?.length > 1 
+                                    ? `Delete this note and all ${deletePopup._mergedIds.length} combined parts?` 
+                                    : "Delete this note?"}
+                            </div>
                             <div className="notes-modal-footer">
                                 <button className="notes-btn" style={{ width: 'auto', background: 'transparent', border: '1px solid #e2e8f0' }} onClick={() => setDeletePopup(null)}>Cancel</button>
                                 <button className="notes-btn notes-btn-primary" style={{ width: 'auto', background: '#dc3545' }} onClick={() => handleDeleteNote(deletePopup)}>
@@ -611,39 +835,170 @@ const Notes = () => {
                     </div>
                 )}
                 
-                {movePopup && (
-                    <div className="notes-modal-overlay">
-                        <div className="notes-modal">
-                            <div className="notes-modal-header">
-                                <h4 style={{ margin: 0 }}>Move Note</h4>
-                                <IonIcon icon={close} style={{ cursor: 'pointer', fontSize: '1.5rem' }} onClick={() => setMovePopup(null)} />
-                            </div>
-                            <div className="notes-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                                <div className="notes-input-group">
-                                    <label>Destination Subject</label>
-                                    <input type="text" className="notes-input" value={moveDestSubject} onChange={(e) => setMoveDestSubject(e.target.value)} placeholder="Subject Name" list="subjectsList" />
-                                    <datalist id="subjectsList">
-                                        {subjects.filter(s => s._id !== 'temp_uncategorized').map(s => <option key={s._id} value={s.name} />)}
-                                    </datalist>
+                {movePopup && (() => {
+                    const moveAvailableFolders = folders.filter(f => 
+                        (f.subject || '').trim().toLowerCase() === (moveDestSubject || '').trim().toLowerCase() &&
+                        (f.topic || '').trim().toLowerCase() === (moveDestTopic || '').trim().toLowerCase()
+                    );
+                    const isFolderValid = moveAvailableFolders.some(f => f._id === moveDestFolderId);
+                    const effectiveFolderId = isFolderValid ? moveDestFolderId : '';
+
+                    return (
+                        <div className="notes-modal-overlay">
+                            <div className="notes-modal" style={{ maxWidth: '520px' }}>
+                                <div className="notes-modal-header">
+                                    <h4 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <IonIcon icon={folderOpenOutline} style={{ color: '#4f46e5' }} />
+                                        Move Note
+                                    </h4>
+                                    <IonIcon icon={close} style={{ cursor: 'pointer', fontSize: '1.5rem' }} onClick={() => setMovePopup(null)} />
                                 </div>
-                                <div className="notes-input-group">
-                                    <label>Destination Topic</label>
-                                    <input type="text" className="notes-input" value={moveDestTopic} onChange={(e) => setMoveDestTopic(e.target.value)} placeholder="Topic Name" list="topicsList" />
-                                    <datalist id="topicsList">
-                                        {subjects.find(s => s.name === moveDestSubject)?.subfolders.filter(sf => sf._id !== 'temp_uncategorized_all').map(sf => <option key={sf._id} value={sf.name} />)}
-                                    </datalist>
+                                <div className="notes-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                                    <div style={{ background: '#f8fafc', padding: '10px 14px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                                        <span style={{ fontSize: '0.8rem', color: '#64748b', display: 'block' }}>Moving Note:</span>
+                                        <strong style={{ color: '#1e293b', fontSize: '0.95rem' }}>{movePopup.heading || 'Untitled Note'}</strong>
+                                        {movePopup._mergedIds?.length > 1 && (
+                                            <span style={{ fontSize: '0.72rem', background: '#e0e7ff', color: '#4338ca', padding: '2px 8px', borderRadius: '10px', fontWeight: 600, marginLeft: '8px' }}>
+                                                {movePopup._mergedIds.length} parts
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    <div className="notes-input-group">
+                                        <label>Destination Subject</label>
+                                        <input 
+                                            type="text" 
+                                            className="notes-input" 
+                                            value={moveDestSubject} 
+                                            onChange={(e) => {
+                                                setMoveDestSubject(e.target.value);
+                                                setMoveDestFolderId(null);
+                                            }} 
+                                            placeholder="Subject Name" 
+                                            list="subjectsList" 
+                                        />
+                                        <datalist id="subjectsList">
+                                            {subjects.filter(s => s._id !== 'temp_uncategorized').map(s => <option key={s._id} value={s.name} />)}
+                                        </datalist>
+                                    </div>
+
+                                    <div className="notes-input-group">
+                                        <label>Destination Topic</label>
+                                        <input 
+                                            type="text" 
+                                            className="notes-input" 
+                                            value={moveDestTopic} 
+                                            onChange={(e) => {
+                                                setMoveDestTopic(e.target.value);
+                                                setMoveDestFolderId(null);
+                                            }} 
+                                            placeholder="Topic Name" 
+                                            list="topicsList" 
+                                        />
+                                        <datalist id="topicsList">
+                                            {subjects.find(s => s.name?.toLowerCase() === moveDestSubject?.trim()?.toLowerCase())?.subfolders.filter(sf => sf._id !== 'temp_uncategorized_all').map(sf => <option key={sf._id} value={sf.name} />)}
+                                        </datalist>
+                                    </div>
+
+                                    <div className="notes-input-group">
+                                        <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <span>Destination Folder (Inside Topic)</span>
+                                            {moveAvailableFolders.length > 0 && (
+                                                <span style={{ fontSize: '0.75rem', color: '#4f46e5', fontWeight: 600 }}>
+                                                    {moveAvailableFolders.length} folder{moveAvailableFolders.length > 1 ? 's' : ''} inside topic
+                                                </span>
+                                            )}
+                                        </label>
+                                        <select
+                                            className="notes-input"
+                                            value={effectiveFolderId}
+                                            onChange={(e) => setMoveDestFolderId(e.target.value || null)}
+                                            style={{ height: '42px', background: '#fff', cursor: 'pointer' }}
+                                        >
+                                            <option value="">📂 Top-Level of Topic (No Folder)</option>
+                                            {moveAvailableFolders.map(f => (
+                                                <option key={f._id} value={f._id}>
+                                                    📁 {getFolderPathName(f, moveAvailableFolders)}
+                                                </option>
+                                            ))}
+                                        </select>
+
+                                        {moveAvailableFolders.length > 0 ? (
+                                            <div style={{ marginTop: '8px' }}>
+                                                <span style={{ fontSize: '0.75rem', color: '#64748b', display: 'block', marginBottom: '6px' }}>
+                                                    Quick select folder:
+                                                </span>
+                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setMoveDestFolderId(null)}
+                                                        style={{
+                                                            fontSize: '0.78rem',
+                                                            padding: '4px 10px',
+                                                            borderRadius: '14px',
+                                                            cursor: 'pointer',
+                                                            background: !effectiveFolderId ? '#4f46e5' : '#f1f5f9',
+                                                            color: !effectiveFolderId ? '#fff' : '#475569',
+                                                            fontWeight: !effectiveFolderId ? 600 : 500,
+                                                            border: '1px solid',
+                                                            borderColor: !effectiveFolderId ? '#4f46e5' : '#e2e8f0',
+                                                            transition: 'all 0.15s ease'
+                                                        }}
+                                                    >
+                                                        Root (No Folder)
+                                                    </button>
+                                                    {moveAvailableFolders.map(f => {
+                                                        const isSelected = effectiveFolderId === f._id;
+                                                        return (
+                                                            <button
+                                                                type="button"
+                                                                key={f._id}
+                                                                onClick={() => setMoveDestFolderId(f._id)}
+                                                                style={{
+                                                                    fontSize: '0.78rem',
+                                                                    padding: '4px 10px',
+                                                                    borderRadius: '14px',
+                                                                    cursor: 'pointer',
+                                                                    background: isSelected ? '#4f46e5' : '#f1f5f9',
+                                                                    color: isSelected ? '#fff' : '#475569',
+                                                                    fontWeight: isSelected ? 600 : 500,
+                                                                    border: '1px solid',
+                                                                    borderColor: isSelected ? '#4f46e5' : '#e2e8f0',
+                                                                    transition: 'all 0.15s ease',
+                                                                    display: 'inline-flex',
+                                                                    alignItems: 'center',
+                                                                    gap: '4px'
+                                                                }}
+                                                            >
+                                                                📁 {getFolderPathName(f, moveAvailableFolders)}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            moveDestTopic ? (
+                                                <span style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '4px', display: 'block' }}>
+                                                    ℹ️ No subfolders found in this topic. The note will be placed directly in the topic.
+                                                </span>
+                                            ) : null
+                                        )}
+                                    </div>
+
+                                    <p style={{ fontSize: '0.82rem', color: '#64748b', margin: 0 }}>
+                                        💡 If you type a new subject or topic name, it will be created automatically.
+                                    </p>
                                 </div>
-                                <p style={{ fontSize: '0.85rem', color: '#64748b', margin: 0 }}>If you type a new subject or topic, it will be created automatically.</p>
-                            </div>
-                            <div className="notes-modal-footer">
-                                <button className="notes-btn" style={{ width: 'auto', background: 'transparent', border: '1px solid #e2e8f0' }} onClick={() => setMovePopup(null)}>Cancel</button>
-                                <button className="notes-btn notes-btn-primary" style={{ width: 'auto' }} onClick={handleMoveSubmit}>
-                                    {isSaving ? <Loader size={20} /> : 'Move'}
-                                </button>
+                                <div className="notes-modal-footer">
+                                    <button className="notes-btn" style={{ width: 'auto', background: 'transparent', border: '1px solid #e2e8f0' }} onClick={() => setMovePopup(null)}>Cancel</button>
+                                    <button className="notes-btn notes-btn-primary" style={{ width: 'auto' }} onClick={handleMoveSubmit}>
+                                        {isSaving ? <Loader size={20} /> : 'Move'}
+                                    </button>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                )}
+                    );
+                })()}
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
@@ -761,7 +1116,7 @@ const Notes = () => {
                                 </div>
                             ) : (
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
-                                    {[...filteredNotes].reverse().sort((a, b) => (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0)).map((obj) => {
+                                    {filteredNotes.map((obj) => {
                                         let previewImage = null;
                                         let previewText = obj.description || '';
                                         if (obj.blocks && obj.blocks.length > 0) {
@@ -781,7 +1136,7 @@ const Notes = () => {
                                                 className="admin-note-card" 
                                                 draggable
                                                 onDragStart={(e) => {
-                                                    e.dataTransfer.setData('application/json', JSON.stringify({ type: 'note', id: obj._id }));
+                                                    e.dataTransfer.setData('application/json', JSON.stringify({ type: 'note', id: obj._id, ids: obj._mergedIds || [obj._id] }));
                                                 }}
                                                 style={{ position: 'relative' }}
                                                 onClick={() => { setSelectedNote(obj); setView('editor'); }}>
@@ -797,12 +1152,19 @@ const Notes = () => {
                                                 )}
                                                 <div className="folder-actions-hover" style={{ position: 'absolute', top: '12px', right: '12px', zIndex: 10, opacity: 0, display: 'flex', gap: '4px' }}>
                                                     <button className="icon-action-btn" onClick={(e) => handleTogglePin(e, obj)} title={obj.isPinned ? "Unpin Note" : "Pin Note"}><IonIcon icon={obj.isPinned ? pin : pinOutline} /></button>
-                                                    <button className="icon-action-btn" onClick={(e) => { e.stopPropagation(); setMovePopup(obj); setMoveDestSubject(obj.subject || ''); setMoveDestTopic(obj.topic || ''); }} title="Move Note"><IonIcon icon={folderOpenOutline} /></button>
-                                                    <button className="icon-action-btn" onClick={(e) => { e.stopPropagation(); setDeletePopup(obj._id); }} title="Delete Note">
+                                                    <button className="icon-action-btn" onClick={(e) => { e.stopPropagation(); setMovePopup(obj); setMoveDestSubject(obj.subject || ''); setMoveDestTopic(obj.topic || ''); setMoveDestFolderId(obj.parentFolderId || null); }} title="Move Note"><IonIcon icon={folderOpenOutline} /></button>
+                                                    <button className="icon-action-btn" onClick={(e) => { e.stopPropagation(); setDeletePopup(obj); }} title="Delete Note">
                                                         <IonIcon icon={trashOutline} />
                                                     </button>
                                                 </div>
-                                                <h3 style={{ margin: '0 0 8px 0', fontSize: '1.15rem', color: '#1e293b' }}>{obj.heading || 'Untitled'}</h3>
+                                                <h3 style={{ margin: '0 0 8px 0', fontSize: '1.15rem', color: '#1e293b', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
+                                                    <span>{obj.heading || 'Untitled'}</span>
+                                                    {obj._mergedIds?.length > 1 && (
+                                                        <span style={{ fontSize: '0.72rem', background: '#e0e7ff', color: '#4338ca', padding: '2px 8px', borderRadius: '10px', fontWeight: 600 }}>
+                                                            {obj._mergedIds.length} parts
+                                                        </span>
+                                                    )}
+                                                </h3>
                                                 <p style={{ margin: 0, fontSize: '0.9rem', color: '#64748b', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                                                     {previewText || 'Click to view / edit this note...'}
                                                 </p>
@@ -826,7 +1188,7 @@ const Notes = () => {
                 subject={selectedSubject?.name || ''}
                 subfolder={selectedSubfolder?.name || ''}
                 parentFolderId={currentFolderId}
-                onBack={() => setView('folder_contents')}
+                onBack={() => setView(selectedSubfolder ? 'folder_contents' : 'subfolders')}
                 onSaved={() => fetchData(false)}
             />
         );

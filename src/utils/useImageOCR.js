@@ -27,7 +27,7 @@ async function preprocessImage(file) {
     const img = await createImageBitmap(file);
 
     // Upscale to give Tesseract more pixels (300 DPI equivalent)
-    const scale = img.width < 1500 ? 1500 / img.width : 1.5;
+    const scale = img.width < 1800 ? 1800 / img.width : 1.5;
     const w = Math.round(img.width * scale);
     const h = Math.round(img.height * scale);
 
@@ -43,11 +43,19 @@ async function preprocessImage(file) {
     ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(img, 0, 0, w, h);
 
-    // Grayscale (helps Tesseract's internal binarization)
+    // Grayscale + Adaptive contrast enhancement (helps preserve quotes and punctuation)
     const imgData = ctx.getImageData(0, 0, w, h);
     const d = imgData.data;
     for (let i = 0; i < d.length; i += 4) {
-        const gray = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+        let gray = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+        // Mild contrast stretch: keep dark text sharp, push near-white background to pure white
+        if (gray > 210) {
+            gray = 255;
+        } else if (gray < 80) {
+            gray = 0;
+        } else {
+            gray = ((gray - 80) / 130) * 255;
+        }
         d[i] = d[i + 1] = d[i + 2] = gray;
     }
     ctx.putImageData(imgData, 0, 0);
@@ -239,6 +247,208 @@ function parseQuestionsFromText(rawText) {
     return result.filter(q => q.question.trim());
 }
 
+function cleanOcrTextArtifacts(str) {
+    if (!str) return '';
+
+    let text = str;
+
+    // 1. Fix broken quotes & punctuation misread by Tesseract:
+    // e.g. **.* or **" or '.* or “ * etc. -> standard quotes
+    text = text
+        .replace(/[\*•\.\s]*\*+[\*\.\s]*([“"”'‘])/g, '$1') // e.g. **" -> "
+        .replace(/([“"”'‘])[\*•\.\s]*\*+/g, '$1')          // e.g. "** -> "
+        .replace(/[\*·•]{2,}/g, '')                         // remove standalone asterisks / bullet chains
+        .replace(/[\u201C\u201D\u201E\u201F\u00AB\u00BB]/g, '"') // Normalize double quotes
+        .replace(/[\u2018\u2019\u201A\u201B`]/g, "'")             // Normalize single quotes
+        .replace(/'\s*\.\s*\*/g, "'")                             // '.* -> '
+        .replace(/\*\s*\.\s*'/g, "'")                             // *.' -> '
+        .replace(/\*\s*\.\s*\*/g, '')                             // *.* -> empty
+
+    // 2. Fix common Malayalam OCR conjunct / ligature mistakes:
+    // ശ്രീ often misrecognized as (ശീ, [ശീ, {ശീ, (ശ്രീ, or ശ്രീ with broken brackets
+    text = text
+        .replace(/[\(\[\{]\s*ശീ\b/g, 'ശ്രീ')
+        .replace(/[\(\[\{]\s*ശ്രീ\b/g, 'ശ്രീ')
+        .replace(/\bശീ\s*നാരായണ/g, 'ശ്രീ നാരായണ')
+        .replace(/\bശീ\s*ശങ്കര/g, 'ശ്രീ ശങ്കര')
+        .replace(/\bശീ\s*ബുദ്ധ/g, 'ശ്രീ ബുദ്ധ');
+
+    // Fix au-length mark Unicode inconsistency:
+    // Tesseract often outputs archaic U+0D4C (ൌ) instead of modern au-length mark U+0D57 (ൗ)
+    // e.g. "ഹൌസ്" -> "ഹൗസ്"
+    text = text.replace(/\u0D4C/g, '\u0D57');
+
+    // Fix au-vowel mark (ൗ / U+0D57 or ൌ / U+0D4C) misread as Malayalam 'യ' (ya):
+    // e.g. "മയലവി" -> "മൗലവി", "വക്കത്തുമയലവി" -> "വക്കം മൗലവി" / "വക്കത്ത് മൗലവി", "ഹയസ്" -> "ഹൗസ്"
+    text = text
+        .replace(/മയലവി/g, 'മൗലവി')
+        .replace(/മയലാന/g, 'മൗലാന')
+        .replace(/മയന/g, 'മൗന')
+        .replace(/മയലിക/g, 'മൗലിക')
+        .replace(/കയതുക/g, 'കൗതുക')
+        .replace(/ഗയരവ/g, 'ഗൗരവ')
+        .replace(/സയര/g, 'സൗര')
+        .replace(/സയന്ദര്യ/g, 'സൗന്ദര്യ')
+        .replace(/സയകര/g, 'സൗകര്യ')
+        .replace(/യയവന/g, 'യൗവന')
+        .replace(/പയര/g, 'പൗര')
+        .replace(/ഹയസ്/g, 'ഹൗസ്');
+
+    // Fix tra/t-ra conjunct (ത്ര vs പ്ര) confusion:
+    // Tesseract often misidentifies the double-loop 'ത്ര' (tra) combined with 'പ' as 'പ്ര' + 'ത'
+    // e.g. "പ്രതം" -> "പത്രം", "പ്രവർത്തനം" -> "പ്രവർത്തനം" (retained), "ദിനപ്രതം" -> "ദിനപത്രം"
+    text = text
+        .replace(/ദിനപ്രതം/g, 'ദിനപത്രം')
+        .replace(/വാരികപ്രതം/g, 'വാരികപത്രം')
+        .replace(/വാർത്താപ്രതം/g, 'വാർത്താപത്രം')
+        .replace(/മാതൃഭൂമി\s*പ്രതം/g, 'മാതൃഭൂമി പത്രം')
+        .replace(/മലയാള\s*മനോരമ\s*പ്രതം/g, 'മലയാള മനോരമ പത്രം')
+        .replace(/\bപ്രതം\b/g, 'പത്രം')
+        .replace(/പ്രതങ്ങൾ\b/g, 'പത്രങ്ങൾ')
+        .replace(/പ്രതത്തി/g, 'പത്രത്തി')
+        .replace(/പ്രതപ്രവർത്ത/g, 'പത്രപ്രവർത്ത')
+        .replace(/പ്രതാധിപ/g, 'പത്രാധിപ');
+
+    // Fix conjunct character displacement (e.g. നാടക്രതയം -> നാടകത്രയം, കവിതക്രതയം -> കവിതാത്രയം)
+    text = text
+        .replace(/നാടക്രതയം/g, 'നാടകത്രയം')
+        .replace(/കവിതക്രതയം/g, 'കവിതാത്രയം')
+        .replace(/രത്നക്രതയം/g, 'രത്നത്രയം')
+        .replace(/ത്രയ([ം|ങ])/g, 'ത്രയ$1')
+        .replace(/ക്രതയം/g, 'ത്രയം');
+
+    // Fix missing leading consonant when left-vowel sign േ (e-sign / U+0D47) or െ (U+0D46) starts a word:
+    // Tesseract often skips the leading 'ക' (ka) in 'കേ' or 'കെ', outputting "േരള" instead of "കേരള"
+    text = text
+        .replace(/(?:^|[\s"'(])േരള/g, (match) => match.replace('േരള', 'കേരള'))
+        .replace(/(?:^|[\s"'(])േന്ദ്ര/g, (match) => match.replace('േന്ദ്ര', 'കേന്ദ്ര'))
+        .replace(/(?:^|[\s"'(])േശവ/g, (match) => match.replace('േശവ', 'കേശവ'))
+        .replace(/(?:^|[\s"'(])േണൽ/g, (match) => match.replace('േണൽ', 'കേണൽ'))
+        .replace(/(?:^|[\s"'(])േസരി/g, (match) => match.replace('േസരി', 'കേസരി'))
+        .replace(/(?:^|[\s"'(])േള/g, (match) => match.replace('േള', 'കേള'));
+
+    // 3. Remove stray OCR phantom letters that Tesseract creates from diamond / bullet icons:
+    // e.g. "ഭ", "൫", "ഭക", "ക", "൭", "ഭ൫", "കക", "ര" when appearing at the very beginning of a line/sentence
+    // followed by whitespace or quote.
+    const phantomBulletAtStart = /^[ഭ൫൭കഖഗഘങചഛജഝഞടഠഡഢണതഥദധനപഫബഭമയരറലളഴവശഷസഹളഴറ]*[ഭ൫൭ക]+[ഭ൫൭ക\d\s\.\-–—]*\s+(?=[^\s])/;
+    text = text.replace(phantomBulletAtStart, '');
+
+    return text.trim();
+}
+
+function parseKeyValuePairsFromText(rawText) {
+    if (!rawText?.trim()) return [];
+
+    // Split text into lines
+    const lines = rawText.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    const pairs = [];
+    let currentPair = null;
+
+    // Standard Unicode bullets: diamonds (◆, ◇), dots (•, ●), squares (■), asterisks
+    const standardBulletRegex = /^[\u25C6\u25C7\u25C8\u25CA\u25CF\u2022\u25AA\u25AB\u2023\u2043\u2219\u2726\u2727\u2731\u2732\u2733\u2748\u2749\u274A\u274B\u25D8\u27A4\u2794\u2799\u279C\u27B2\u27B5\u27BD\u27BF\u25B6\u25BA\u25C4\u25C0\u2218\u2013\u2014\-*•\+\~#]+\s*/;
+    
+    // Numeric bullets: "1. ", "1) ", "(1) "
+    const numberBulletRegex = /^(?:\d{1,3}[\.\)\-:]|\([0-9A-Za-z]\))\s*/;
+
+    // Phantom OCR bullet artifacts misread from diamond bullet icons:
+    // e.g. "ഭ ", "൫ ", "ഭക ", "ക ", "൭ ", "ഭ൫ ", "ഭ- ", "ക. "
+    const phantomOcrBulletRegex = /^(?:[ഭ൫൭ക]|[ഭ൫൭ക]{2,3}|[\(\[\{]?[ഭ൫൭ക][\)\]\}]?)[ \t\.\-–—:]+\s*/;
+
+    // Separators between key and value:
+    // e.g. " - ", " — ", " – ", " : ", " = ", " -> ", " → "
+    // Also matches " -" or "- " at word boundaries
+    const separatorRegex = /(?:\s+[-–—]\s*|\s*[-–—]\s+|\s*:\s*|\s*={1,2}\s*|\s*->\s*|\s*→\s*)/;
+
+    for (let i = 0; i < lines.length; i++) {
+        let rawLine = lines[i];
+
+        // Clean quotes, asterisks, and ligature issues
+        let line = cleanOcrTextArtifacts(rawLine);
+
+        // Check if line starts with any bullet (standard, numeric, or phantom OCR letters)
+        const hasStandardBullet = standardBulletRegex.test(line);
+        const hasNumberBullet = numberBulletRegex.test(line);
+        const hasPhantomBullet = phantomOcrBulletRegex.test(line);
+
+        let cleanedLine = line
+            .replace(standardBulletRegex, '')
+            .replace(numberBulletRegex, '')
+            .replace(phantomOcrBulletRegex, '')
+            .trim();
+
+        // One more pass for any residual phantom prefix like "ഭ " or "൭ "
+        cleanedLine = cleanedLine.replace(/^[ഭ൫൭ക]\s+/, '').trim();
+
+        if (!cleanedLine) continue;
+
+        // Try to split on key-value separator
+        const sepMatch = cleanedLine.search(separatorRegex);
+
+        if (hasStandardBullet || hasNumberBullet || hasPhantomBullet || sepMatch !== -1) {
+            // New key-value pair boundary
+            if (currentPair) {
+                if (currentPair.key.trim() || currentPair.value.trim()) {
+                    pairs.push(currentPair);
+                }
+            }
+
+            if (sepMatch !== -1) {
+                // Split at separator
+                const parts = cleanedLine.split(separatorRegex);
+                const k = parts[0]?.trim() || '';
+                const v = parts.slice(1).join(' - ').trim();
+                currentPair = { key: k, value: v };
+            } else {
+                // Bullet line but separator might be on this line or next wrapped line
+                currentPair = { key: cleanedLine, value: '' };
+            }
+        } else {
+            // Continuation line — belongs to previous pair
+            if (currentPair) {
+                const contSepMatch = cleanedLine.search(separatorRegex);
+                if (!currentPair.value && contSepMatch !== -1) {
+                    const parts = cleanedLine.split(separatorRegex);
+                    currentPair.key += ' ' + parts[0].trim();
+                    currentPair.value = parts.slice(1).join(' - ').trim();
+                } else if (currentPair.value) {
+                    // Append to value
+                    currentPair.value += ' ' + cleanedLine;
+                } else {
+                    // If current key exists but no value yet, and this line doesn't have a dash,
+                    // check if current key ends as a complete clause, else append to key
+                    currentPair.key += ' ' + cleanedLine;
+                }
+            } else {
+                currentPair = { key: cleanedLine, value: '' };
+            }
+        }
+    }
+
+    if (currentPair && (currentPair.key.trim() || currentPair.value.trim())) {
+        pairs.push(currentPair);
+    }
+
+    // Clean up final pairs
+    return pairs.map(p => {
+        let k = cleanOcrTextArtifacts(p.key.trim());
+        let v = cleanOcrTextArtifacts(p.value.trim());
+
+        // Strip phantom bullet letters at start of key
+        k = k.replace(/^[ഭ൫൭ക\s\.\-–—:]+/, '').trim();
+
+        // If key ends with a stray hyphen or colon, strip it
+        k = k.replace(/[-–—:]+$/, '').trim();
+
+        // If value starts with a stray hyphen or colon, strip it
+        v = v.replace(/^[-–—:]+/, '').trim();
+
+        // Remove phantom letters that leaked into value start
+        v = v.replace(/^[ഭ൫൭ക]\s+/, '').trim();
+
+        return { key: k, value: v };
+    }).filter(p => p.key || p.value);
+}
+
 // ─── Main hook ─────────────────────────────────────────────────────────────────
 export function useImageOCR() {
     const [isExtracting, setIsExtracting] = useState(false);
@@ -305,6 +515,96 @@ export function useImageOCR() {
         }
     }, []);
 
+    const runOCRKeyValues = useCallback(async (sources) => {
+        setIsExtracting(true);
+        setOcrProgress(10);
+        setOcrError(null);
+        try {
+            const Tesseract = await loadTesseract();
+            const allPairs = [];
+
+            for (let i = 0; i < sources.length; i++) {
+                const pStart = 20 + (i / sources.length) * 70;
+                const pEnd = 20 + ((i + 1) / sources.length) * 70;
+
+                const { data } = await Tesseract.recognize(sources[i], 'eng+mal', {
+                    tessedit_pageseg_mode: '3',
+                    preserve_interword_spaces: '1',
+                    logger: m => {
+                        if (m.status === 'recognizing text') {
+                            setOcrProgress(Math.round(pStart + m.progress * (pEnd - pStart)));
+                        } else if (m.status === 'loading language traineddata') {
+                            setOcrProgress(Math.round(5 + m.progress * 15));
+                        }
+                    },
+                });
+
+                const pagePairs = parseKeyValuePairsFromText(data.text);
+                allPairs.push(...pagePairs);
+            }
+
+            setOcrProgress(100);
+            return allPairs;
+        } catch (err) {
+            console.error('[useImageOCR] runOCRKeyValues error:', err);
+            setOcrError(err?.message || 'OCR key-value extraction failed.');
+            return [];
+        } finally {
+            setIsExtracting(false);
+        }
+    }, []);
+
+    const extractKeyValuesFromFile = useCallback(async (file) => {
+        setIsExtracting(true);
+        setOcrProgress(0);
+        setOcrError(null);
+
+        try {
+            setOcrProgress(5);
+            const isPDF = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+            let sources;
+
+            if (isPDF) {
+                setOcrProgress(15);
+                sources = await pdfToCanvases(file);
+            } else {
+                setOcrProgress(15);
+                sources = [await preprocessImage(file)];
+            }
+
+            const Tesseract = await loadTesseract();
+            let allText = '';
+            for (let i = 0; i < sources.length; i++) {
+                const pStart = 20 + (i / sources.length) * 70;
+                const pEnd = 20 + ((i + 1) / sources.length) * 70;
+
+                const { data } = await Tesseract.recognize(sources[i], 'eng+mal', {
+                    tessedit_pageseg_mode: '3',
+                    preserve_interword_spaces: '1',
+                    logger: m => {
+                        if (m.status === 'recognizing text') {
+                            setOcrProgress(Math.round(pStart + m.progress * (pEnd - pStart)));
+                        } else if (m.status === 'loading language traineddata') {
+                            setOcrProgress(Math.round(5 + m.progress * 15));
+                        }
+                    },
+                });
+                allText += (allText ? '\n\n' : '') + data.text;
+            }
+
+            setOcrProgress(95);
+            const parsed = parseKeyValuePairsFromText(allText);
+            setOcrProgress(100);
+            return parsed;
+        } catch (err) {
+            console.error('[useImageOCR] extractKeyValuesFromFile error:', err);
+            setOcrError(err?.message || 'OCR failed — try a higher-resolution image.');
+            return [];
+        } finally {
+            setIsExtracting(false);
+        }
+    }, []);
+
     const extractFromFile = useCallback(async (file) => {
         setIsExtracting(true);
         setOcrProgress(0);
@@ -357,5 +657,14 @@ export function useImageOCR() {
         }
     }, []);
 
-    return { extractFromFile, extractCanvasesFromPDF, runOCR, isExtracting, ocrProgress, ocrError };
+    return { 
+        extractFromFile, 
+        extractCanvasesFromPDF, 
+        runOCR, 
+        runOCRKeyValues, 
+        extractKeyValuesFromFile, 
+        isExtracting, 
+        ocrProgress, 
+        ocrError 
+    };
 }

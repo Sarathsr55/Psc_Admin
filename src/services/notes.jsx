@@ -63,7 +63,8 @@ const updateNotes = async (note) => {
 }
 
 const deleteNote = async (note) => {
-    let deleteNotes = await AuthRequest.post(ApiConstants.BACKEND_API.DELETENOTES, note, {
+    const payload = typeof note === 'string' ? { _id: note } : note;
+    let deleteNotes = await AuthRequest.post(ApiConstants.BACKEND_API.DELETENOTES, payload, {
         headers: {
             'Authorization': `Bearer ${token}`
         }
